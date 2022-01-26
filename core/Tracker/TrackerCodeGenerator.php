@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Matomo - free/libre analytics platform
  *
@@ -146,9 +147,9 @@ class TrackerCodeGenerator
         if ($excludedQueryParams) {
 
             if (!is_array($excludedQueryParams)) {
-                $excludedQueryParams = explode(',',$excludedQueryParams);
+                $excludedQueryParams = explode(',', $excludedQueryParams);
             }
-            $options .= '  _paq.push(["setExcludedQueryParams", '.json_encode($excludedQueryParams).']);'."\n";
+            $options .= '  _paq.push(["setExcludedQueryParams", ' . json_encode($excludedQueryParams) . ']);' . "\n";
         }
 
         if ($disableCookies) {
@@ -172,9 +173,16 @@ class TrackerCodeGenerator
             $codeImpl['protocol'] = 'https://';
         }
 
-        $parameters = compact('mergeSubdomains', 'groupPageTitlesByDomain', 'mergeAliasUrls', 'visitorCustomVariables',
-            'pageCustomVariables', 'customCampaignNameQueryParam', 'customCampaignKeywordParam',
-            'doNotTrack');
+        $parameters = compact(
+            'mergeSubdomains',
+            'groupPageTitlesByDomain',
+            'mergeAliasUrls',
+            'visitorCustomVariables',
+            'pageCustomVariables',
+            'customCampaignNameQueryParam',
+            'customCampaignKeywordParam',
+            'doNotTrack'
+        );
 
         /**
          * Triggered when generating JavaScript tracking code server side. Plugins can use
@@ -224,7 +232,7 @@ class TrackerCodeGenerator
 
     public function getJsTrackerEndpoint()
     {
-        $name = 'matomo.js';
+        $name = 'nm-analyser.js';
         if ($this->shouldPreferPiwikEndpoint()) {
             $name = 'piwik.js';
         }
@@ -233,7 +241,7 @@ class TrackerCodeGenerator
 
     public function getPhpTrackerEndpoint()
     {
-        $name = 'matomo.php';
+        $name = 'nm-analyser.php';
         if ($this->shouldPreferPiwikEndpoint()) {
             $name = 'piwik.php';
         }
@@ -264,7 +272,7 @@ class TrackerCodeGenerator
             if (empty($site_url)) {
                 continue;
             }
-            
+
             $referrerParsed = parse_url($site_url);
 
             if (!isset($firstHost) && isset($referrerParsed['host'])) {
@@ -279,7 +287,7 @@ class TrackerCodeGenerator
             if (!empty($referrerParsed['path'])) {
                 $url .= $referrerParsed['path'];
             }
-            
+
             if (!empty($url)) {
                 $websiteHosts[] = $url;
             }
