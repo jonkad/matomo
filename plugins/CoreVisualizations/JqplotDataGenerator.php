@@ -15,9 +15,6 @@ use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Row;
 use Piwik\Metrics;
-use Piwik\Period\Factory;
-use Piwik\Piwik;
-use Piwik\Plugins\API\Filter\DataComparisonFilter;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator\Chart;
 use Piwik\Plugins\CoreVisualizations\Visualizations\JqplotGraph;
 
@@ -125,7 +122,6 @@ class JqplotDataGenerator
             list($yLabels, $serieses) = $this->getMainTableSerieses($dataTable, $columnsToDisplay);
         }
 
-        $visualization->dataTable = $dataTable;
         $visualization->properties = $this->properties;
 
         $visualization->setAxisXLabels($xLabels);

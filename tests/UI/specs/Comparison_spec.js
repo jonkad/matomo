@@ -31,7 +31,18 @@ describe("Comparison", function () {
             + "actionToWidgetize=getSearchEngines&viewDataTable=table&filter_limit=5&isFooterExpandedInDashboard=1" + comparePeriod,
         visitOverviewWidget = "?module=Widgetize&action=iframe&containerId=VisitOverviewWithGraph&disableLink=0&widget=1&" +
             "moduleToWidgetize=CoreHome&actionToWidgetize=renderWidgetContainer&disableLink=1&widget=1&" + generalParams + "&" +
-            compareParams
+            compareParams,
+        visitOverviewSparklines = "?module=Widgetize&action=iframe&disableLink=1&widget=1&" +
+            "moduleToWidgetize=VisitsSummary&actionToWidgetize=get&forceView=1&viewDataTable=sparklines&" + generalParams + "&" +
+            compareParams,
+        visitOverviewWidgetComparePeriods = "?module=Widgetize&action=iframe&containerId=VisitOverviewWithGraph&disableLink=0&widget=1&" +
+          "moduleToWidgetize=CoreHome&actionToWidgetize=renderWidgetContainer&disableLink=1&widget=1&idSite=1&period=year&date=2012-01-12" + compareSegment,
+        visitOverviewWidgetCompareYear = "?module=Widgetize&action=iframe&containerId=VisitOverviewWithGraph&disableLink=0&widget=1&" +
+          "moduleToWidgetize=CoreHome&actionToWidgetize=renderWidgetContainer&disableLink=1&widget=1&idSite=1&period=year&date=2012-01-12&compareDates[]=2011-01-31&comparePeriods[]=year",
+        visitOverviewWidgetCompareWeekSmallRange = "?module=Widgetize&action=iframe&containerId=VisitOverviewWithGraph&disableLink=0&widget=1&" +
+        "moduleToWidgetize=CoreHome&actionToWidgetize=renderWidgetContainer&disableLink=1&widget=1&idSite=1&period=week&date=2012-01-12&compareDates[]=2012-01-20,2012-01-31&comparePeriods[]=range",
+        visitOverviewWidgetCompareLargeRange = "?module=Widgetize&action=iframe&containerId=VisitOverviewWithGraph&disableLink=0&widget=1&" +
+        "moduleToWidgetize=CoreHome&actionToWidgetize=renderWidgetContainer&disableLink=1&widget=1&idSite=1&period=range&date=2012-01-12,2014-02-12&compareDates[]=2011-01-31,2013-02-31&comparePeriods[]=range"
     ;
 
     it('should compare periods correctly when comparing the last period', async () => {
@@ -48,6 +59,7 @@ describe("Comparison", function () {
         await page.waitForSelector('.widget');
         await page.waitForNetworkIdle();
         await page.waitForSelector('.piwik-graph');
+        await page.waitForNetworkIdle();
 
         const pageWrap = await page.$('.pageWrap');
         expect(await pageWrap.screenshot()).to.matchImage('dashboard_last_period');
@@ -174,7 +186,8 @@ describe("Comparison", function () {
             return $('.cellSubDataTable > .dataTable').length === 1;
         });
 
-        await page.mouse.move(-10, -10); // mae sure no row is highlighted
+        await page.mouse.move(-10, -10); // make sure no row is highlighted
+        await page.waitForTimeout(250);
 
         expect(await page.screenshot({ fullPage: true })).to.matchImage('subtables_loaded');
     });
@@ -183,7 +196,8 @@ describe("Comparison", function () {
         await page.click('.cellSubDataTable .dataTableNext');
         await page.waitForNetworkIdle();
 
-        await page.mouse.move(-10, -10); // mae sure no row is highlighted
+        await page.mouse.move(-10, -10); // make sure no row is highlighted
+        await page.waitForTimeout(250);
 
         expect(await page.screenshot({ fullPage: true })).to.matchImage('subtables_paginate');
     });
@@ -241,15 +255,56 @@ describe("Comparison", function () {
         expect(await dialog.screenshot()).to.matchImage('segmented_visitorlog');
     });
 
-    it('should show the goals table correctly when comparing segments and period', async () => {
+    it('should show the goals overview table correctly when comparing segments and period', async () => {
         await page.goto(goalsTableUrl);
         await page.waitForNetworkIdle();
         expect(await page.screenshot({ fullPage: true })).to.matchImage('goals_table');
+    });
+
+    it('should show a specific goals table correctly when comparing segments and period', async () => {
+        await page.goto(goalsTableUrl + '&idGoal=1');
+        await page.waitForNetworkIdle();
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('goals_table_specific');
     });
 
     it('should load a widgetized sparklines visualization correctly', async () => {
         await page.goto(visitOverviewWidget);
         await page.waitForNetworkIdle();
         expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget');
+    });
+
+    it('should load a widgetized sparklines visualization correctly when comparing two years', async () => {
+        await page.goto(visitOverviewWidgetCompareYear);
+        await page.waitForNetworkIdle();
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget_year');
+    });
+
+    it('should load a widgetized sparklines visualization correctly when comparing two segments over a year', async () => {
+        await page.goto(visitOverviewWidgetComparePeriods);
+        await page.waitForNetworkIdle();
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget_compareperiod_year');
+    });
+
+    it('should load a widgetized sparklines visualization correctly when comparing a week with a small range', async () => {
+        await page.goto(visitOverviewWidgetCompareWeekSmallRange);
+        await page.waitForNetworkIdle();
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget_week_smallrange');
+    });
+
+    it('should load a widgetized sparklines visualization correctly when comparing large ranges', async () => {
+        await page.goto(visitOverviewWidgetCompareLargeRange);
+        await page.waitForNetworkIdle();
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget_largerange');
+    });
+
+    it('should show evolution metrics correctly formatted in other language', async () => {
+        await page.goto(visitOverviewSparklines + '&language=sv');
+        await page.waitForNetworkIdle();
+        await page.evaluate(function(){
+            // replace all metric names with `metric name` to avoid test failures when metric translation changes
+            $('.sparkline-metrics').each(function(){ $(this).html($(this).find('strong').prop('outerHTML') + ' metric name') });
+        });
+
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('visits_overview_widget_sv');
     });
 });

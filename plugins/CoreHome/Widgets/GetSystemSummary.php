@@ -8,7 +8,6 @@
  */
 namespace Piwik\Plugins\CoreHome\Widgets;
 
-use Piwik\API\Request;
 use Piwik\Db;
 use Piwik\Piwik;
 use Piwik\Plugin;
@@ -21,6 +20,7 @@ use Piwik\Widget\WidgetConfig;
 class GetSystemSummary extends Widget
 {
     const TEST_MYSQL_VERSION = 'mysql-version-redacted';
+    const TEST_PHP_VERSION = 'php-version-redacted';
     /**
      * @var StoredSegmentService
      */
@@ -48,6 +48,7 @@ class GetSystemSummary extends Widget
     public function render()
     {
         $mysqlVersion = $this->getMySqlVersion();
+        $phpVersion = $this->getPHPVersion();
 
         $systemSummary = array();
 
@@ -68,7 +69,7 @@ class GetSystemSummary extends Widget
 
         $systemSummary[] = new Item($key = 'piwik-version', Piwik::translate('CoreHome_SystemSummaryPiwikVersion'), Version::VERSION, $url = null, $icon = '', $order = 21);
         $systemSummary[] = new Item($key = 'mysql-version', Piwik::translate('CoreHome_SystemSummaryMysqlVersion'), $mysqlVersion, $url = null, $icon = '', $order = 22);
-        $systemSummary[] = new Item($key = 'php-version', Piwik::translate('CoreHome_SystemSummaryPhpVersion'), phpversion(), $url = null, $icon = '', $order = 23);
+        $systemSummary[] = new Item($key = 'php-version', Piwik::translate('CoreHome_SystemSummaryPhpVersion'), $phpVersion, $url = null, $icon = '', $order = 23);
 
         $systemSummary = array_filter($systemSummary);
         usort($systemSummary, function ($itemA, $itemB) {
@@ -115,6 +116,16 @@ class GetSystemSummary extends Widget
 
         $db = Db::get();
         return $db->getServerVersion();
+
+    }
+
+    private function getPHPVersion()
+    {
+        if (defined('PIWIK_TEST_MODE')) {
+            return self::TEST_PHP_VERSION;
+        }
+
+        return phpversion();
     }
 
 }

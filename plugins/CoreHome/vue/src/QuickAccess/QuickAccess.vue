@@ -13,7 +13,6 @@
     <span
       class="icon-search"
       @mouseenter="searchActive = true"
-      v-show="!(searchTerm || searchActive)"
     />
     <input
       class="s"
@@ -22,8 +21,9 @@
       v-model="searchTerm"
       type="text"
       tabindex="2"
-      v-focus-if:[searchActive]="{}"
+      v-focus-if="{ focused: searchActive }"
       :title="quickAccessTitle"
+      :placeholder="translate('General_Search')"
       ref="input"
     />
     <div
@@ -84,7 +84,7 @@
           @mouseenter="searchIndex = 'help'"
         >
           <a
-            :href="`https://matomo.org?s=${encodeURIComponent(searchTerm)}`"
+            :href="`https://matomo.org?mtm_campaign=App_Help&mtm_source=Matomo_App&mtm_keyword=QuickSearch&s=${encodeURIComponent(searchTerm)}`"
             target="_blank"
           >
             {{ translate('CoreHome_SearchOnMatomo', searchTerm) }}
@@ -99,7 +99,7 @@
 import { DeepReadonly, defineComponent } from 'vue';
 import FocusAnywhereButHere from '../FocusAnywhereButHere/FocusAnywhereButHere';
 import FocusIf from '../FocusIf/FocusIf';
-import translate from '../translate';
+import { translate } from '../translate';
 import SitesStore from '../SiteSelector/SitesStore';
 import Site from '../SiteSelector/Site';
 import Matomo from '../Matomo/Matomo';
@@ -443,7 +443,7 @@ export default defineComponent({
 
         if (category && category.lastIndexOf('\n') !== -1) {
           // remove "\n\nMenu"
-          category = category.substr(0, category.lastIndexOf('\n')).trim();
+          category = category.slice(0, category.lastIndexOf('\n')).trim();
         }
 
         window.$(element).find('li .item').each((i, subElement) => {

@@ -157,7 +157,6 @@ class Visualization extends ViewDataTable
 
     private $templateVars = array();
     private $reportLastUpdatedMessage = null;
-    private $metadata = null;
     protected $metricsFormatter = null;
 
     /**
@@ -226,6 +225,7 @@ class Visualization extends ViewDataTable
 
         if (null === $this->dataTable) {
             $view->dataTable = null;
+            $view->dataTableHasNoData = true;
         } else {
             $view->dataTableHasNoData = !$this->isThereDataToDisplay();
             $view->dataTable          = $this->dataTable;
@@ -250,6 +250,7 @@ class Visualization extends ViewDataTable
         $view->isWidget    = Common::getRequestVar('widget', 0, 'int');
         $view->notifications = [];
         $view->isComparing = $this->isComparing();
+        $view->rowIdentifier = $this->report ? ($this->report->getRowIdentifier() ?: 'label') : 'label';
 
         if (!$this->supportsComparison()
             && DataComparisonFilter::isCompareParamsPresent()
@@ -311,11 +312,9 @@ class Visualization extends ViewDataTable
         return $hasData;
     }
 
-    /**
-     * @internal
-     */
     protected function loadDataTableFromAPI()
     {
+
         if (!is_null($this->dataTable)) {
             // data table is already there
             // this happens when setDataTable has been used
@@ -458,12 +457,33 @@ class Visualization extends ViewDataTable
         }
 
         // deal w/ table metadata
+        $metadata = null;
         if ($this->dataTable instanceof DataTable) {
-            $this->metadata = $this->dataTable->getAllTableMetadata();
-
-            if (isset($this->metadata[DataTable::ARCHIVED_DATE_METADATA_NAME])) {
-                $this->reportLastUpdatedMessage = $this->makePrettyArchivedOnText();
+            $metadata = $this->dataTable->getAllTableMetadata();
+        } else {
+            // if the dataTable is Map
+            if ($this->dataTable instanceof DataTable\Map) {
+                // load all the data
+                $dataTable = $this->dataTable->getDataTables();
+                // find the latest key
+                foreach ($dataTable as $item) {
+                    $itemMetaData = $item->getAllTableMetadata();
+                    // initial metadata and update metadata if current is more recent
+                    if (!empty($itemMetaData[DataTable::ARCHIVED_DATE_METADATA_NAME])
+                        && (
+                            empty($metadata[DataTable::ARCHIVED_DATE_METADATA_NAME])
+                            || strtotime($itemMetaData[DataTable::ARCHIVED_DATE_METADATA_NAME]) > strtotime($metadata[DataTable::ARCHIVED_DATE_METADATA_NAME])
+                        )
+                    ) {
+                        $metadata = $itemMetaData;
+                    }
+               }
             }
+        }
+
+        // if metadata set display report date
+        if (!empty($metadata[DataTable::ARCHIVED_DATE_METADATA_NAME])) {
+            $this->reportLastUpdatedMessage = $this->makePrettyArchivedOnText($metadata[DataTable::ARCHIVED_DATE_METADATA_NAME]);
         }
 
         $pivotBy = Common::getRequestVar('pivotBy', false) ?: $this->requestConfig->pivotBy;
@@ -558,14 +578,16 @@ class Visualization extends ViewDataTable
         }
     }
 
+
     /**
      * Returns prettified and translated text that describes when a report was last updated.
      *
+     * @param $dateText
      * @return string
+     * @throws \Exception
      */
-    private function makePrettyArchivedOnText()
+    private function makePrettyArchivedOnText($dateText)
     {
-        $dateText = $this->metadata[DataTable::ARCHIVED_DATE_METADATA_NAME];
         $date     = Date::factory($dateText);
         $today    = mktime(0, 0, 0);
         $metricsFormatter = new HtmlFormatter();
@@ -882,5 +904,20 @@ class Visualization extends ViewDataTable
         }
 
         return $request;
+    }
+
+    /**
+     * Apply the metrics formatting filter to the dataset
+     *
+     * This is a workaround to allow visualizations to access unformatted data via format_metrics=0 and then
+     * subsequently apply formatting without needed to reload the dataset or reapply other filters. This method may
+     * be removed in the future.
+     *
+     * @internal
+     */
+    protected function applyMetricsFormatting()
+    {
+        $postProcessor = $this->makeDataTablePostProcessor(); // must be created after requestConfig is final
+        $this->dataTable = $postProcessor->applyMetricsFormatting($this->dataTable);
     }
 }

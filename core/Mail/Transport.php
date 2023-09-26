@@ -15,7 +15,6 @@ use Piwik\Config;
 use Piwik\Container\StaticContainer;
 use Piwik\Mail;
 use Piwik\Piwik;
-use Piwik\Version;
 
 class Transport
 {
@@ -30,6 +29,15 @@ class Transport
     public function send(Mail $mail)
     {
         $phpMailer = new PHPMailer(true);
+
+        //check self-signed config in mail
+        $phpMailer->SMTPOptions = [
+            'ssl' => [
+                'verify_peer'       => (int)Config::getInstance()->mail['ssl_verify_peer'],
+                'verify_peer_name'  => (int)Config::getInstance()->mail['ssl_verify_peer_name'],
+                'allow_self_signed' => Config::getInstance()->mail['ssl_disallow_self_signed'] == "1" ? 0 : 1,
+            ],
+        ];
 
         PHPMailer::$validator = 'pcre8';
         $phpMailer->CharSet = PHPMailer::CHARSET_UTF8;

@@ -27,6 +27,14 @@
 			<exit_rate>Exit rate</exit_rate>
 			<avg_time_generation>Avg. generation time</avg_time_generation>
 		</processedMetrics>
+		<metricTypes>
+			<nb_hits>number</nb_hits>
+			<nb_visits>number</nb_visits>
+			<avg_time_on_page>duration_s</avg_time_on_page>
+			<bounce_rate>percent</bounce_rate>
+			<exit_rate>percent</exit_rate>
+			<avg_time_generation>duration_s</avg_time_generation>
+		</metricTypes>
 		<actionToLoadSubTables>getPageUrls</actionToLoadSubTables>
 		<relatedReports>
 			<row>
@@ -93,5 +101,33 @@
 		<entry_sum_visit_length>6484</entry_sum_visit_length>
 		<entry_bounce_count>4</entry_bounce_count>
 		<exit_nb_visits>4</exit_nb_visits>
+		<goals>
+			<row idgoal="1">
+				<nb_conversions>8</nb_conversions>
+				<revenue>40</revenue>
+				<nb_conv_pages_before>2</nb_conv_pages_before>
+				<nb_conversions_attrib>8</nb_conversions_attrib>
+				<nb_conversions_page_uniq>8</nb_conversions_page_uniq>
+				<revenue_attrib>40</revenue_attrib>
+				<revenue_entry>40</revenue_entry>
+				<revenue_per_entry>10</revenue_per_entry>
+				<nb_conversions_entry>8</nb_conversions_entry>
+				<nb_conversions_page_rate>1</nb_conversions_page_rate>
+				<nb_conversions_entry_rate>2</nb_conversions_entry_rate>
+			</row>
+			<row idgoal="2">
+				<nb_conversions>4</nb_conversions>
+				<revenue>20</revenue>
+				<nb_conv_pages_before>1</nb_conv_pages_before>
+				<nb_conversions_attrib>4</nb_conversions_attrib>
+				<nb_conversions_page_uniq>4</nb_conversions_page_uniq>
+				<revenue_attrib>20</revenue_attrib>
+				<revenue_entry>20</revenue_entry>
+				<revenue_per_entry>5</revenue_per_entry>
+				<nb_conversions_entry>4</nb_conversions_entry>
+				<nb_conversions_page_rate>1</nb_conversions_page_rate>
+				<nb_conversions_entry_rate>1</nb_conversions_entry_rate>
+			</row>
+		</goals>
 	</reportTotal>
 </result>

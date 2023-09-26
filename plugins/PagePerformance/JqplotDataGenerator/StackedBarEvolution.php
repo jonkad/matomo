@@ -8,15 +8,9 @@
  */
 namespace Piwik\Plugins\PagePerformance\JqplotDataGenerator;
 
-use Piwik\Archive\DataTableFactory;
-use Piwik\Common;
 use Piwik\DataTable;
-use Piwik\Date;
-use Piwik\Metrics;
 use Piwik\Period;
-use Piwik\Period\Factory;
 use Piwik\Plugins\CoreVisualizations\JqplotDataGenerator;
-use Piwik\Url;
 
 /**
  * Generates JQPlot JSON data/config for evolution graphs.
@@ -64,21 +58,21 @@ class StackedBarEvolution extends JqplotDataGenerator\Evolution
         // collect series data to show. each row-to-display/column-to-display permutation creates a series.
         $allSeriesData = array();
         foreach ($columnsToDisplay as $column) {
-            $allSeriesData[] = $this->getSeriesData($column, $dataTable);
+            $allSeriesData[$column] = $this->getSeriesData($column, $dataTable);
         }
 
         $visualization->dataTable = $dataTable;
         $visualization->properties = $this->properties;
 
-        $seriesLabels = [];
+        $seriesMetadata = [];
         foreach ($columnsToDisplay as $columnName) {
-            $seriesLabels[] = [
+            $seriesMetadata[$columnName] = [
                 'internalLabel' => $columnName,
                 'label' => @$this->properties['translations'][$columnName] ?: $columnName
             ];
         }
 
-        $visualization->setAxisYValues($allSeriesData, $seriesLabels);
+        $visualization->setAxisYValues($allSeriesData, $seriesMetadata);
         $visualization->setAxisYUnits($this->getUnitsForColumnsToDisplay());
 
         $xLabelStrs = [];

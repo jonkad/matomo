@@ -8,8 +8,7 @@
  */
 namespace Piwik\Plugins\VisitFrequency;
 
-use Piwik\Plugins\CoreVisualizations\Visualizations\Graph;
-use Piwik\Plugins\CoreVisualizations\Visualizations\HtmlTable;
+use Piwik\Columns\Dimension;
 
 class VisitFrequency extends \Piwik\Plugin
 {
@@ -19,7 +18,8 @@ class VisitFrequency extends \Piwik\Plugin
     public function registerEvents()
     {
         return array(
-            'Metrics.getDefaultMetricTranslations' => 'addMetricTranslations'
+            'Metrics.getDefaultMetricTranslations' => 'addMetricTranslations',
+            'Metrics.getDefaultMetricSemanticTypes' => 'addMetricSemanticTypes',
         );
     }
 
@@ -46,4 +46,22 @@ class VisitFrequency extends \Piwik\Plugin
         $translations = array_merge($translations, $metrics);
     }
 
+    public function addMetricSemanticTypes(array &$types): void
+    {
+        $metrics = array(
+            'nb_visits_returning'  => Dimension::TYPE_NUMBER,
+            'nb_actions_returning' => Dimension::TYPE_NUMBER,
+            'max_actions_returning' => Dimension::TYPE_NUMBER,
+            'nb_uniq_visitors_returning'     => Dimension::TYPE_NUMBER,
+            'nb_users_returning' => Dimension::TYPE_NUMBER,
+
+            'nb_visits_new'  => Dimension::TYPE_NUMBER,
+            'nb_actions_new' => Dimension::TYPE_NUMBER,
+            'max_actions_new' => Dimension::TYPE_NUMBER,
+            'nb_uniq_visitors_new'     => Dimension::TYPE_NUMBER,
+            'nb_users_new' => Dimension::TYPE_NUMBER,
+        );
+
+        $types = array_merge($types, $metrics);
+    }
 }

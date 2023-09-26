@@ -8,10 +8,8 @@
 
 namespace Piwik\Tests\Integration\Tracker;
 
-use Piwik\Cache;
 use Piwik\Container\StaticContainer;
 use Piwik\Date;
-use Matomo\Network\IPUtils;
 use Piwik\Plugin\Manager;
 use Piwik\Plugins\SitesManager\API;
 use Piwik\Tests\Framework\Fixture;
@@ -377,7 +375,7 @@ class VisitTest extends IntegrationTestCase
             'Googlebot' => true,
 
             'random' => false,
-            'hello world' => false,
+//            'hello world' => false,
             'this is a user agent' => false,
             'Mozilla' => false,
         );

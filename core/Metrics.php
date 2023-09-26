@@ -9,7 +9,7 @@
 namespace Piwik;
 
 use Piwik\Cache as PiwikCache;
-use Piwik\Container\StaticContainer;
+use Piwik\Columns\Dimension;
 
 require_once PIWIK_INCLUDE_PATH . "/core/Piwik.php";
 
@@ -98,6 +98,15 @@ class Metrics
     const INDEX_GOAL_ECOMMERCE_REVENUE_SHIPPING = 6;
     const INDEX_GOAL_ECOMMERCE_REVENUE_DISCOUNT = 7;
     const INDEX_GOAL_ECOMMERCE_ITEMS = 8;
+    const INDEX_GOAL_NB_PAGES_UNIQ_BEFORE = 9;
+    const INDEX_GOAL_NB_CONVERSIONS_ATTRIB = 10;
+    const INDEX_GOAL_NB_CONVERSIONS_PAGE_RATE = 11;
+    const INDEX_GOAL_NB_CONVERSIONS_PAGE_UNIQ = 12;
+    const INDEX_GOAL_NB_CONVERSIONS_ENTRY_RATE = 13;
+    const INDEX_GOAL_REVENUE_PER_ENTRY = 14;
+    const INDEX_GOAL_REVENUE_ATTRIB = 15;
+    const INDEX_GOAL_NB_CONVERSIONS_ENTRY = 16;
+    const INDEX_GOAL_REVENUE_ENTRY = 17;
 
     public static $mappingFromIdToName = array(
         Metrics::INDEX_NB_UNIQ_VISITORS                      => 'nb_uniq_visitors',
@@ -163,6 +172,15 @@ class Metrics
         Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_SHIPPING => 'revenue_shipping',
         Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_DISCOUNT => 'revenue_discount',
         Metrics::INDEX_GOAL_ECOMMERCE_ITEMS            => 'items',
+        Metrics::INDEX_GOAL_NB_PAGES_UNIQ_BEFORE       => 'nb_conv_pages_before',
+        Metrics::INDEX_GOAL_NB_CONVERSIONS_ATTRIB      => 'nb_conversions_attrib',
+        Metrics::INDEX_GOAL_NB_CONVERSIONS_PAGE_RATE   => 'nb_conversions_page_rate',
+        Metrics::INDEX_GOAL_NB_CONVERSIONS_PAGE_UNIQ   => 'nb_conversions_page_uniq',
+        Metrics::INDEX_GOAL_NB_CONVERSIONS_ENTRY_RATE  => 'nb_conversions_entry_rate',
+        Metrics::INDEX_GOAL_REVENUE_PER_ENTRY          => 'revenue_per_entry',
+        Metrics::INDEX_GOAL_REVENUE_ATTRIB             => 'revenue_attrib',
+        Metrics::INDEX_GOAL_NB_CONVERSIONS_ENTRY       => 'nb_conversions_entry',
+        Metrics::INDEX_GOAL_REVENUE_ENTRY              => 'revenue_entry',
     );
 
     protected static $metricsAggregatedFromLogs = array(
@@ -317,6 +335,73 @@ class Metrics
         }
 
         return '';
+    }
+
+    public static function getDefaultMetricSemanticTypes(): array
+    {
+        $cacheId = CacheId::pluginAware('DefaultMetricSemanticTypes');
+        $cache = PiwikCache::getTransientCache();
+
+        $types = $cache->fetch($cacheId);
+        if (empty($types)) {
+            $types = [
+                'nb_visits'                     => Dimension::TYPE_NUMBER,
+                'nb_uniq_visitors'              => Dimension::TYPE_NUMBER,
+                'nb_actions'                    => Dimension::TYPE_NUMBER,
+                'nb_users'                      => Dimension::TYPE_NUMBER,
+                'avg_time_on_page'              => Dimension::TYPE_DURATION_S,
+                'sum_time_spent'                => Dimension::TYPE_DURATION_S,
+                'sum_visit_length'              => Dimension::TYPE_DURATION_S,
+                'bounce_count'                  => Dimension::TYPE_NUMBER,
+                'bounce_count_returning'        => Dimension::TYPE_NUMBER,
+                'max_actions'                   => Dimension::TYPE_NUMBER,
+                'max_actions_returning'         => Dimension::TYPE_NUMBER,
+                'nb_visits_converted_returning' => Dimension::TYPE_NUMBER,
+                'sum_visit_length_returning'    => Dimension::TYPE_NUMBER,
+                'nb_visits_converted'           => Dimension::TYPE_NUMBER,
+                'nb_conversions'                => Dimension::TYPE_NUMBER,
+                'revenue'                       => Dimension::TYPE_MONEY,
+                'nb_hits'                       => Dimension::TYPE_NUMBER,
+                'entry_nb_visits'               => Dimension::TYPE_NUMBER,
+                'entry_nb_uniq_visitors'        => Dimension::TYPE_NUMBER,
+                'exit_nb_visits'                => Dimension::TYPE_NUMBER,
+                'exit_nb_uniq_visitors'         => Dimension::TYPE_NUMBER,
+                'entry_bounce_count'            => Dimension::TYPE_NUMBER,
+                'exit_bounce_count'             => Dimension::TYPE_NUMBER,
+                'exit_rate'                     => Dimension::TYPE_PERCENT,
+                'sum_daily_nb_uniq_visitors'    => Dimension::TYPE_NUMBER,
+                'sum_daily_nb_users'            => Dimension::TYPE_NUMBER,
+                'sum_daily_entry_nb_uniq_visitors' => Dimension::TYPE_NUMBER,
+                'sum_daily_exit_nb_uniq_visitors' => Dimension::TYPE_NUMBER,
+                'entry_nb_actions'              => Dimension::TYPE_NUMBER,
+                'entry_sum_visit_length'        => Dimension::TYPE_NUMBER,
+                'nb_actions_per_visit'          => Dimension::TYPE_NUMBER,
+                'avg_time_on_site'              => Dimension::TYPE_DURATION_S,
+                'bounce_rate'                   => Dimension::TYPE_PERCENT,
+                'conversion_rate'               => Dimension::TYPE_PERCENT,
+            ];
+
+            /**
+             * Use this event to notify Matomo of the semantic types of metrics your plugin adds.
+             *
+             * A metric's semantic type is metadata used primarily in integrations with Matomo
+             * and third party services/applications. It provides information that can be used
+             * to determine how to display or use the information.
+             *
+             * It is recommended for your plugin to provide this information so users of third
+             * party services that connect with Matomo can make full use of the data your plugin
+             * tracks.
+             *
+             * See {@link Metrics} for the list of available semantic types.
+             *
+             * @param string $types The array mapping of metric_name => metric semantic type
+             */
+            Piwik::postEvent('Metrics.getDefaultMetricSemanticTypes', [&$types]);
+
+            $cache->save($cacheId, $types);
+        }
+
+        return $types;
     }
 
     public static function getDefaultMetricTranslations()

@@ -11,7 +11,7 @@ namespace Piwik\Archive;
 
 use Piwik\Archive\ArchiveInvalidator\InvalidationResult;
 use Piwik\ArchiveProcessor\Rules;
-use Piwik\Config;
+use Piwik\Common;
 use Piwik\Container\StaticContainer;
 use Piwik\CronArchive\ReArchiveList;
 use Piwik\CronArchive\SegmentArchiving;
@@ -20,17 +20,15 @@ use Piwik\DataAccess\Model;
 use Piwik\Date;
 use Piwik\Db;
 use Piwik\Option;
-use Piwik\Common;
+use Piwik\Period;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager;
 use Piwik\Plugins\CoreAdminHome\Tasks\ArchivesToPurgeDistributedList;
 use Piwik\Plugins\PrivacyManager\PrivacyManager;
-use Piwik\Period;
 use Piwik\Segment;
 use Piwik\SettingsServer;
 use Piwik\Site;
 use Piwik\Tracker\Cache;
-use Piwik\Tracker\Model as TrackerModel;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -97,7 +95,7 @@ class ArchiveInvalidator
         // we do not really have to get the value first. we could simply always try to call set() and it would update or
         // insert the record if needed but we do not want to lock the table (especially since there are still some
         // MyISAM installations)
-        $values = Option::getLike('%' . $this->rememberArchivedReportIdStart . '%');
+        $values = Option::getLike('%' . str_replace('_', '\_', $this->rememberArchivedReportIdStart) . '%');
 
         $all = [];
         foreach ($values as $name => $value) {
@@ -122,7 +120,7 @@ class ArchiveInvalidator
             // we do not really have to get the value first. we could simply always try to call set() and it would update or
             // insert the record if needed but we do not want to lock the table (especially since there are still some
             // MyISAM installations)
-            $value = Option::getLike('%' . $key . '%');
+            $value = Option::getLike('%' . str_replace('_', '\_', $key) . '%');
         }
 
         // getLike() returns an empty array rather than 'false'
@@ -155,7 +153,7 @@ class ArchiveInvalidator
 
     public function getRememberedArchivedReportsThatShouldBeInvalidated()
     {
-        $reports = Option::getLike('%' . $this->rememberArchivedReportIdStart . '%_%');
+        $reports = Option::getLike('%' . str_replace('_', '\_', $this->rememberArchivedReportIdStart) . '%\_%');
 
         $sitesPerDay = array();
 
@@ -184,7 +182,7 @@ class ArchiveInvalidator
     {
         return $this->rememberArchivedReportIdStart . (int) $idSite;
     }
-    
+
     private function buildRememberArchivedReportIdForSiteAndDate($idSite, $date)
     {
         $id  = $this->buildRememberArchivedReportIdForSite($idSite);
@@ -205,9 +203,11 @@ class ArchiveInvalidator
 
     public function forgetRememberedArchivedReportsToInvalidateForSite($idSite)
     {
-        $id = $this->buildRememberArchivedReportIdForSite($idSite) . '\_';
-        $this->deleteOptionLike($id);
-        Cache::clearCacheGeneral();
+        $id = $this->buildRememberArchivedReportIdForSite($idSite) . '_';
+        $hasDeletedSomething = $this->deleteOptionLike($id);
+        if ($hasDeletedSomething) {
+            Cache::clearCacheGeneral();
+        }
     }
 
     /**
@@ -221,17 +221,22 @@ class ArchiveInvalidator
 
         // The process pid is added to the end of the entry in order to support multiple concurrent transactions.
         //  So this must be a deleteLike call to get all the entries, where there used to only be one.
-        $this->deleteOptionLike($id);
+        return $this->deleteOptionLike($id);
     }
 
+    /**
+     * @param $id
+     * @return bool true if a record was deleted, false otherwise.
+     * @throws \Zend_Db_Statement_Exception
+     */
     private function deleteOptionLike($id)
     {
         // we're not using deleteLike since it maybe could cause deadlocks see https://github.com/matomo-org/matomo/issues/15545
         // we want to reduce number of rows scanned and only delete specific primary key
-        $keys = Option::getLike('%' . $id . '%');
+        $keys = Option::getLike('%' . str_replace('_', '\_', $id) . '%');
 
         if (empty($keys)) {
-            return;
+            return false;
         }
 
         $keys = array_keys($keys);
@@ -239,7 +244,8 @@ class ArchiveInvalidator
         $placeholders = Common::getSqlStringFieldsArray($keys);
 
         $table = Common::prefixTable('option');
-        Db::query('DELETE FROM `' . $table . '` WHERE `option_name` IN (' . $placeholders . ')', $keys);
+        $db = Db::query('DELETE FROM `' . $table . '` WHERE `option_name` IN (' . $placeholders . ')', $keys);
+        return (bool) $db->rowCount();
     }
 
     /**
@@ -248,14 +254,15 @@ class ArchiveInvalidator
      * @param $period string
      * @param $segment Segment
      * @param bool $cascadeDown
-     * @param bool $forceInvalidateNonexistantRanges set true to force inserting rows for ranges in archive_invalidations
+     * @param bool $forceInvalidateNonexistentRanges set true to force inserting rows for ranges in archive_invalidations
      * @param string $name null to make sure every plugin is archived when this invalidation is processed by core:archive,
      *                     or a plugin name to only archive the specific plugin.
+     * @param bool $ignorePurgeLogDataDate
      * @return InvalidationResult
      * @throws \Exception
      */
     public function markArchivesAsInvalidated(array $idSites, array $dates, $period, Segment $segment = null, $cascadeDown = false,
-                                              $forceInvalidateNonexistantRanges = false, $name = null, $ignorePurgeLogDataDate = false)
+                                              $forceInvalidateNonexistentRanges = false, $name = null, $ignorePurgeLogDataDate = false)
     {
         $plugin = null;
         if ($name && strpos($name, '.') !== false) {
@@ -281,6 +288,7 @@ class ArchiveInvalidator
                 && count($dates) == 1
                 && ((string)$dates[0]) == ((string)Date::factoryInTimezone('today', $tz))
             ) {
+                // date is for today
                 $hasMoreThanJustToday[$idSite] = false;
             }
         }
@@ -312,24 +320,31 @@ class ArchiveInvalidator
 
         $allPeriodsToInvalidate = $this->getAllPeriodsByYearMonth($period, $datesToInvalidate, $cascadeDown);
 
-        $this->markArchivesInvalidated($idSites, $allPeriodsToInvalidate, $segment, $period != 'range', $forceInvalidateNonexistantRanges, $name);
+        $this->markArchivesInvalidated($idSites, $allPeriodsToInvalidate, $segment, $period != 'range', $forceInvalidateNonexistentRanges, $name);
 
         $isInvalidatingDays = $period == 'day' || $cascadeDown || empty($period);
         $isNotInvalidatingSegment = empty($segment) || empty($segment->getString());
+
         if ($isInvalidatingDays
             && $isNotInvalidatingSegment
         ) {
+
+            $hasDeletedAny = false;
+
             foreach ($idSites as $idSite) {
                 foreach ($dates as $date) {
                     if (is_string($date)) {
                         $date = Date::factory($date);
                     }
 
-                    $this->forgetRememberedArchivedReportsToInvalidate($idSite, $date);
+                    $hasDeletedAny = $this->forgetRememberedArchivedReportsToInvalidate($idSite, $date) || $hasDeletedAny;
                 }
             }
+
+            if ($hasDeletedAny) {
+                Cache::clearCacheGeneral();
+            }
         }
-        Cache::clearCacheGeneral();
 
         return $invalidationInfo;
     }
@@ -459,7 +474,7 @@ class ArchiveInvalidator
     {
         $date2 = Date::today();
 
-        $earliestDateToRearchive = $this->getEarliestDateToRearchive();
+        $earliestDateToRearchive = Piwik::getEarliestDateToRearchive();
         if (empty($startDate)) {
             if (empty($earliestDateToRearchive)) {
                 return null; // INI setting set to 0 months so no rearchiving
@@ -663,7 +678,7 @@ class ArchiveInvalidator
      * @throws \Exception
      */
     private function markArchivesInvalidated($idSites, $dates, Segment $segment = null, $removeRanges = false,
-                                             $forceInvalidateNonexistantRanges = false, $name = null)
+                                             $forceInvalidateNonexistentRanges = false, $name = null)
     {
         $idSites = array_map('intval', $idSites);
 
@@ -675,7 +690,7 @@ class ArchiveInvalidator
             $table = ArchiveTableCreator::getNumericTable($tableDateObj);
             $yearMonths[] = $tableDateObj->toString('Y_m');
 
-            $this->model->updateArchiveAsInvalidated($table, $idSites, $datesForTable, $segment, $forceInvalidateNonexistantRanges, $name);
+            $this->model->updateArchiveAsInvalidated($table, $idSites, $datesForTable, $segment, $forceInvalidateNonexistentRanges, $name);
 
             if ($removeRanges) {
                 $this->model->updateRangeArchiveAsInvalidated($table, $idSites, $datesForTable, $segment);
@@ -763,7 +778,7 @@ class ArchiveInvalidator
     private function getSegmentArchiving()
     {
         if (empty($this->segmentArchiving)) {
-            $this->segmentArchiving = new SegmentArchiving(StaticContainer::get('ini.General.process_new_segments_from'));
+            $this->segmentArchiving = new SegmentArchiving();
         }
         return $this->segmentArchiving;
     }
@@ -779,24 +794,4 @@ class ArchiveInvalidator
         return $this->allIdSitesCache;
     }
 
-    private function getEarliestDateToRearchive()
-    {
-        $lastNMonthsToInvalidate = Config::getInstance()->General['rearchive_reports_in_past_last_n_months'];
-        if (empty($lastNMonthsToInvalidate)) {
-            return null;
-        }
-
-        if (!is_numeric($lastNMonthsToInvalidate)) {
-            $lastNMonthsToInvalidate = (int)str_replace('last', '', $lastNMonthsToInvalidate);
-            if (empty($lastNMonthsToInvalidate)) {
-                return null;
-            }
-        }
-
-        if ($lastNMonthsToInvalidate <= 0) {
-            return null;
-        }
-
-        return Date::yesterday()->subMonth($lastNMonthsToInvalidate)->setDay(1);
-    }
 }

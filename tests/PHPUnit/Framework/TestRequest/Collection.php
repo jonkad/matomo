@@ -11,7 +11,6 @@ namespace Piwik\Tests\Framework\TestRequest;
 use Piwik\API\DocumentationGenerator;
 use Piwik\API\Proxy;
 use Piwik\API\Request;
-use Piwik\Date;
 use Piwik\Tests\Framework\TestCase\SystemTestCase;
 use Piwik\Url;
 use Piwik\UrlHelper;
@@ -110,7 +109,7 @@ class Collection
     {
         $parametersToSet = array(
             'idSite'         => $this->testConfig->idSite,
-            'date'           => ($this->testConfig->periods == array('range') || strpos($this->testConfig->date, ',') !== false || preg_match('/last[ -]?(week|month|year)/i', $this->testConfig->date)) ?
+            'date'           => ($this->testConfig->periods == array('range') || strpos($this->testConfig->date, ',') !== false || preg_match('/last[ -]?(week|month|year)/i', $this->testConfig->date) || preg_match('/(today|yesterday)/i', $this->testConfig->date)) ?
                                     $this->testConfig->date : date('Y-m-d', strtotime($this->testConfig->date)),
             'expanded'       => '1',
             'piwikUrl'       => 'http://example.org/piwik/',

@@ -35,6 +35,11 @@ class Cache
      */
     private $cache;
 
+    /**
+     * @var bool
+     */
+    private $limitActionIds;
+
     public function __construct(LoggerInterface $logger, Config $config, \Matomo\Cache\Lazy $cache)
     {
         $this->isEnabled = (bool)$config->General['enable_segments_subquery_cache'];
@@ -139,7 +144,7 @@ class Cache
      */
     private function fetchActionIdsFromDb($valueToMatch, $sql)
     {
-        $idActions = \Piwik\Db::fetchAll($sql, $valueToMatch);
+        $idActions = \Piwik\Db::getReader()->fetchAll($sql, $valueToMatch);
 
         $ids = array();
         foreach ($idActions as $idAction) {

@@ -14,7 +14,6 @@ use Piwik\API\Request;
 use Piwik\Common;
 use Piwik\DataTable;
 use Piwik\DataTable\Filter\CalculateEvolutionFilter;
-use Piwik\DataTable\Filter\ColumnCallbackAddColumnPercentage;
 use Piwik\Date;
 use Piwik\NumberFormatter;
 use Piwik\Period;
@@ -91,7 +90,7 @@ class Get extends Base
                         return;
                     }
 
-                    $pastValue = $previousDataRow->getColumn($columnName);
+                    $pastValue = $previousDataRow ? $previousDataRow->getColumn($columnName) : 0;
 
                     $currentValueFormatted = NumberFormatter::getInstance()->format($value);
                     $pastValueFormatted    = NumberFormatter::getInstance()->format($pastValue);

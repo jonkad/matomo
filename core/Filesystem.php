@@ -151,7 +151,7 @@ class Filesystem
 
             // check if filesystem is NFS
             if ($returnCode == 0
-                && count($output) > 1
+                && is_array($output) && count($output) > 1
                 && preg_match('/\bnfs\d?\b/', implode("\n", $output))
             ) {
                 return true;
@@ -314,7 +314,11 @@ class Filesystem
             return str_replace($target, '', $file);
         }, $targetFiles);
 
-        $diff = array_diff($targetFiles, $sourceFiles);
+        if (FileSystem::isFileSystemCaseInsensitive()) {
+            $diff = array_udiff($targetFiles, $sourceFiles, 'strcasecmp');
+        } else {
+            $diff = array_diff($targetFiles, $sourceFiles);
+        }
 
         return array_values($diff);
     }
@@ -497,7 +501,7 @@ class Filesystem
             apc_clear_cache(); // clear the system (aka 'opcode') cache
         }
 
-        if (function_exists('opcache_reset')) {
+        if (function_exists('opcache_reset') && Config::getInstance()->Cache['enable_opcache_reset'] !== 0) {
             @opcache_reset(); // reset the opcode cache (php 5.5.0+)
         }
 
@@ -555,6 +559,23 @@ class Filesystem
         $pathIsTmp = StaticContainer::get('path.tmp');
         $isPathWithinTmpFolder = strpos($path, $pathIsTmp) === 0;
         return $isPathWithinTmpFolder;
+    }
+
+    /**
+     * Check if the filesystem is case sensitive by writing a temporary file
+     *
+     * @return bool
+     */
+    public static function isFileSystemCaseInsensitive() : bool
+    {
+        $testFileName = 'caseSensitivityTest.txt';
+        $pathTmp = StaticContainer::get('path.tmp');
+        @file_put_contents($pathTmp.'/'.$testFileName, 'Nothing to see here.');
+        if (\file_exists($pathTmp.'/'.strtolower($testFileName))) {
+             // Wrote caseSensitivityTest.txt but casesensitivitytest.txt exists, so case insensitive
+            return true;
+        }
+        return false;
     }
 
     /**

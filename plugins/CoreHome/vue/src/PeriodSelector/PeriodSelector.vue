@@ -165,7 +165,7 @@ import DateRangePicker from '../DateRangePicker/DateRangePicker.vue';
 import PeriodDatePicker from '../PeriodDatePicker/PeriodDatePicker.vue';
 import ActivityIndicator from '../ActivityIndicator/ActivityIndicator.vue';
 import Matomo from '../Matomo/Matomo';
-import translate from '../translate';
+import { translate } from '../translate';
 import ComparisonsStore from '../Comparisons/Comparisons.store.instance';
 import useExternalPluginComponent from '../useExternalPluginComponent';
 import {
@@ -250,13 +250,13 @@ export default defineComponent({
   },
   mounted() {
     Matomo.on('hidePeriodSelector', () => {
-      window.$(this.$refs.root as HTMLElement).hide();
+      window.$(this.$refs.root as HTMLElement).parent('#periodString').hide();
     });
 
     // some widgets might hide the period selector using the event above, so ensure it's
     // shown again when switching the page
     Matomo.on('piwikPageChange', () => {
-      window.$(this.$refs.root as HTMLElement).show();
+      window.$(this.$refs.root as HTMLElement).parent('#periodString').show();
     });
 
     this.updateSelectedValuesFromHash();

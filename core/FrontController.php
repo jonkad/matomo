@@ -11,6 +11,7 @@ namespace Piwik;
 
 use Exception;
 use Piwik\API\Request;
+use Piwik\Config\GeneralConfig;
 use Piwik\Container\StaticContainer;
 use Piwik\DataTable\Manager;
 use Piwik\Exception\AuthenticationFailedException;
@@ -180,8 +181,14 @@ class FrontController extends Singleton
              */
             Piwik::postEvent('User.isNotAuthorized', array($exception), $pending = true);
         } catch (\Twig\Error\RuntimeError $e) {
-            echo $this->generateSafeModeOutputFromException($e);
-            exit;
+            if ($e->getPrevious() && !$e->getPrevious() instanceof \Twig\Error\RuntimeError) {
+                // a regular exception unrelated to twig was triggered while rendering an a view, for example as part of a triggered event
+                // we want to ensure to show the regular error message response instead of the safemode as it's likely wrong user input
+                throw $e;
+            } else {
+                echo $this->generateSafeModeOutputFromException($e);
+                exit;
+            }
         } catch(StylesheetLessCompileException $e) {
             echo $this->generateSafeModeOutputFromException($e);
             exit;
@@ -460,6 +467,10 @@ class FrontController extends Singleton
 
         if (is_null($action)) {
             $action = Common::getRequestVar('action', false);
+            if ($action !== false) {
+                // If a value was provided, check it has the correct type.
+                $action = Common::getRequestVar('action', null, 'string');
+            }
         }
 
         if (Session::isSessionStarted()) {
@@ -489,10 +500,14 @@ class FrontController extends Singleton
 
     protected function handleMaintenanceMode()
     {
-        if ((Config::getInstance()->General['maintenance_mode'] != 1) || Common::isPhpCliMode()) {
+        if ((GeneralConfig::getConfigValue('maintenance_mode') != 1) || Common::isPhpCliMode() ) {
             return;
         }
-        Common::sendResponseCode(503);
+
+        // as request matomo behind load balancer should not return 503. https://github.com/matomo-org/matomo/issues/18054
+        if (GeneralConfig::getConfigValue('multi_server_environment') != 1) {
+            Common::sendResponseCode(503);
+        }
 
         $logoUrl = 'plugins/Morpheus/images/logo.svg';
         $faviconUrl = 'plugins/CoreHome/images/favicon.png';
@@ -530,7 +545,7 @@ class FrontController extends Singleton
     protected function handleSSLRedirection()
     {
         // Specifically disable for the opt out iframe
-        if (Piwik::getModule() == 'CoreAdminHome' && Piwik::getAction() == 'optOut') {
+        if (Piwik::getModule() == 'CoreAdminHome' && (Piwik::getAction() == 'optOut' || Piwik::getAction() == 'optOutJS')) {
             return;
         }
         // Disable Https for VisitorGenerator
@@ -697,6 +712,7 @@ class FrontController extends Singleton
         // so we do it here, if this is not an API request.
         if (SettingsPiwik::isMatomoInstalled()
             && ($module !== 'API' || ($action && $action !== 'index'))
+            && !($module === 'CoreAdminHome' && $action === 'optOutJS')
         ) {
             /**
              * @ignore

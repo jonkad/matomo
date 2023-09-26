@@ -8,14 +8,13 @@
 
 namespace Piwik\Plugins\CoreAdminHome\tests\Framework\Mock;
 
-use Piwik\Tracker;
 
 class API extends \Piwik\Plugins\CoreAdminHome\API
 {
     private $invalidatedReports = array();
 
     public function invalidateArchivedReports($idSites, $dates, $period = false, $segment = false, $cascadeDown = false,
-                                              $_forceInvalidateNonexistant = false)
+                                              $_forceInvalidateNonexistent = false)
     {
         $this->invalidatedReports[] = func_get_args();
     }

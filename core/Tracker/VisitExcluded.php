@@ -31,6 +31,11 @@ class VisitExcluded
 
     private $siteCache = array();
 
+    public $request;
+    public $idSite;
+    public $userAgent;
+    public $ip;
+
     /**
      * @param Request $request
      */
@@ -190,7 +195,7 @@ class VisitExcluded
     {
         $allowBots = $this->request->getParam('bots');
 
-        $deviceDetector = StaticContainer::get(DeviceDetectorFactory::class)->makeInstance($this->userAgent );
+        $deviceDetector = StaticContainer::get(DeviceDetectorFactory::class)->makeInstance($this->userAgent, $this->request->getClientHints());
 
         return !$allowBots
             && ($deviceDetector->isBot() || $this->isIpInRange());

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Matomo - free/libre analytics platform
  *
@@ -16,7 +17,7 @@ use Piwik\Plugins\SitesManager\SitesManager;
  * @group GtmSiteTypeGuesserTest
  * @group Plugins
  */
-class GtmSiteTypeGuesserTest extends \PHPUnit\Framework\TestCase
+class GuessSiteTypeAndGtmTest extends \PHPUnit\Framework\TestCase
 {
     /**
      * @var GtmSiteTypeGuesser
@@ -30,17 +31,17 @@ class GtmSiteTypeGuesserTest extends \PHPUnit\Framework\TestCase
         $this->guesser = new GtmSiteTypeGuesser();
     }
 
-    public function test_site_type_unknown_if_response_false()
+    public function testSiteTypeUnknownIfResponseFalse()
     {
         $this->assertEquals(SitesManager::SITE_TYPE_UNKNOWN, $this->guesser->guessSiteTypeFromResponse(false));
     }
 
-    public function test_gtm_is_false_if_response_false()
+    public function testGtmIsFalseIfResponseFalse()
     {
         $this->assertFalse($this->guesser->guessGtmFromResponse(false));
     }
 
-    public function test_gtm_is_true()
+    public function testGtmIsTrue()
     {
         $response = [
             'status' => 200,
@@ -49,14 +50,59 @@ class GtmSiteTypeGuesserTest extends \PHPUnit\Framework\TestCase
         ];
 
         $this->assertTrue($this->guesser->guessGtmFromResponse($response));
+
+        $response['data'] = 'foo bar googletagmanager.js ffoo';
+        $this->assertTrue($this->guesser->guessGtmFromResponse($response));
     }
 
     /**
      * @dataProvider responseProvider
      */
-    public function test_site_types_by_response($expected, $response)
+    public function testSiteTypesByResponse($expected, $response)
     {
         $this->assertEquals($expected, $this->guesser->guessSiteTypeFromResponse($response));
+    }
+
+    /**
+     * All your actual test methods should start with the name "test"
+     */
+    public function testDetectionOfGa3()
+    {
+        $response = $this->makeSiteResponse("<html><head></head><body>UA-00000-00</body></html>");
+        $this->assertTrue($this->guesser->detectGA3FromResponse($response));
+
+        $response = $this->makeSiteResponse("<html><head></head><body><script src='google-analytics.com/analytics.js'/></body></html>");
+        $this->assertTrue($this->guesser->detectGA3FromResponse($response));
+
+        $response = $this->makeSiteResponse("<html><head></head><body><script>window.ga=window.ga;</script></body></html>");
+        $this->assertTrue($this->guesser->detectGA3FromResponse($response));
+
+        $response = $this->makeSiteResponse("<html><head></head><body><script>google-ANALYTICS</script></body></html>");
+        $this->assertTrue($this->guesser->detectGA3FromResponse($response));
+    }
+
+    public function testDetectionOfGa3_noResult()
+    {
+        $this->assertFalse($this->guesser->detectGA3FromResponse([]));
+    }
+
+    public function testDetectionOfGa4()
+    {
+        $response = $this->makeSiteResponse("<html><head></head><body>G-12345ABC</body></html>");
+        $this->assertTrue($this->guesser->detectGA4FromResponse($response));
+
+        $response = $this->makeSiteResponse("<html><head></head><body>properties/1234</body></html>");
+        $this->assertTrue($this->guesser->detectGA4FromResponse($response));
+    }
+
+    public function testDetectionOfGa4_noResult()
+    {
+        $this->assertFalse($this->guesser->detectGA4FromResponse([]));
+    }
+
+    private function makeSiteResponse($data, $headers = [])
+    {
+        return ['data' => $data, 'headers' => $headers, 'status' => 200];
     }
 
     public function responseProvider()

@@ -115,13 +115,16 @@ class Archiver extends \Piwik\Plugin\Archiver
 
     public function aggregateDayReport()
     {
-        $this->aggregateGeneralGoalMetrics();
+        $hasConversions = $this->getProcessor()->getNumberOfVisitsConverted() > 0;
+        if ($hasConversions) {
+            $this->aggregateGeneralGoalMetrics();
+        }
 
         if (Manager::getInstance()->isPluginActivated('Ecommerce')) {
             $this->aggregateEcommerceItems();
         }
 
-        if (self::$ARCHIVE_DEPENDENT) {
+        if (self::$ARCHIVE_DEPENDENT && $hasConversions) {
             $this->getProcessor()->processDependentArchive('Goals', VisitFrequencyAPI::NEW_VISITOR_SEGMENT);
             $this->getProcessor()->processDependentArchive('Goals', VisitFrequencyAPI::RETURNING_VISITOR_SEGMENT);
         }
@@ -129,7 +132,7 @@ class Archiver extends \Piwik\Plugin\Archiver
 
     private function hasAnyGoalOrEcommerce($idSite)
     {
-        return $this->usesEcommerce($idSite) || GoalManager::getGoalIds($idSite);
+        return $this->usesEcommerce($idSite) || !empty(GoalManager::getGoalIds($idSite));
     }
 
     private function usesEcommerce($idSite)
@@ -154,9 +157,25 @@ class Archiver extends \Piwik\Plugin\Archiver
         $goals = new DataArray();
         $visitsToConversions = $daysToConversions = [];
 
+        $siteHasEcommerceOrGoals = $this->hasAnyGoalOrEcommerce($this->getSiteId());
+
+        // Special handling for sites that contain subordinated sites, like in roll up reporting.
+        // A roll up site, might not have ecommerce enabled or any configured goals,
+        // but if a subordinated site has, we calculate the overview conversion metrics nevertheless
+        if ($siteHasEcommerceOrGoals === false) {
+            $idSitesToArchive = $this->getProcessor()->getParams()->getIdSites();
+
+            foreach ($idSitesToArchive as $idSite) {
+                if ($this->hasAnyGoalOrEcommerce($idSite)) {
+                    $siteHasEcommerceOrGoals = true;
+                    break;
+                }
+            }
+        }
+
         // try to query goal data only, if goals or ecommerce is actually used
         // otherwise we simply insert empty records
-        if ($this->hasAnyGoalOrEcommerce($this->getSiteId())) {
+        if ($siteHasEcommerceOrGoals) {
             $selects = [];
             $selects = array_merge($selects, LogAggregator::getSelectsFromRangedColumn(
                 self::VISITS_COUNT_FIELD, self::$visitCountRanges, self::LOG_CONVERSION_TABLE, $prefixes[self::VISITS_UNTIL_RECORD_NAME]
@@ -471,6 +490,8 @@ class Archiver extends \Piwik\Plugin\Archiver
      */
     public function aggregateMultipleReports()
     {
+        $hasConversions = $this->getProcessor()->getNumberOfVisitsConverted() > 0;
+
         /*
          * Archive Ecommerce Items
          */
@@ -490,10 +511,14 @@ class Archiver extends \Piwik\Plugin\Archiver
                 $countRowsRecursive = []);
         }
 
+        $goalIdsToSum = [];
+
         /*
          *  Archive General Goal metrics
          */
-        $goalIdsToSum = GoalManager::getGoalIds($this->getProcessor()->getParams()->getSite()->getId());
+        if ($hasConversions) {
+            $goalIdsToSum = GoalManager::getGoalIds($this->getProcessor()->getParams()->getSite()->getId());
+        }
 
         //Ecommerce
         if (Manager::getInstance()->isPluginActivated('Ecommerce')) {
@@ -501,16 +526,21 @@ class Archiver extends \Piwik\Plugin\Archiver
         }
 
         // Overall goal metrics
-        $goalIdsToSum[] = false;
-
-        $fieldsToSum = array();
-        foreach ($goalIdsToSum as $goalId) {
-            $metricsToSum = Goals::getGoalColumns($goalId);
-            foreach ($metricsToSum as $metricName) {
-                $fieldsToSum[] = self::getRecordName($metricName, $goalId);
-            }
+        if ($hasConversions) {
+            $goalIdsToSum[] = false;
         }
-        $this->getProcessor()->aggregateNumericMetrics($fieldsToSum);
+
+        // overall numeric metrics
+        if ($hasConversions) {
+            $fieldsToSum = array();
+            foreach ($goalIdsToSum as $goalId) {
+                $metricsToSum = Goals::getGoalColumns($goalId);
+                foreach ($metricsToSum as $metricName) {
+                    $fieldsToSum[] = self::getRecordName($metricName, $goalId);
+                }
+            }
+            $this->getProcessor()->aggregateNumericMetrics($fieldsToSum);
+        }
 
         $columnsAggregationOperation = null;
 
@@ -539,7 +569,7 @@ class Archiver extends \Piwik\Plugin\Archiver
                 $columnsToRenameAfterAggregation = null,
                 $countRowsRecursive = array());
 
-        if (self::$ARCHIVE_DEPENDENT) {
+        if (self::$ARCHIVE_DEPENDENT && $hasConversions) {
             $this->getProcessor()->processDependentArchive('Goals', VisitFrequencyAPI::NEW_VISITOR_SEGMENT);
             $this->getProcessor()->processDependentArchive('Goals', VisitFrequencyAPI::RETURNING_VISITOR_SEGMENT);
         }

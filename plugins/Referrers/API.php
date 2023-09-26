@@ -14,17 +14,17 @@ use Piwik\API\ResponseBuilder;
 use Piwik\Archive;
 use Piwik\Common;
 use Piwik\DataTable;
-use Piwik\DataTable\Filter\ColumnCallbackAddColumnPercentage;
 use Piwik\Date;
 use Piwik\Metrics;
 use Piwik\Piwik;
+use Piwik\Plugins\Referrers\Columns\Metrics\VisitorsFromReferrerPercent;
 use Piwik\Plugins\Referrers\DataTable\Filter\GroupDifferentSocialWritings;
 use Piwik\Site;
 
 /**
  * The Referrers API lets you access reports about Websites, Search engines, Keywords, Campaigns used to access your website.
  *
- * For example, "getKeywords" returns all search engine keywords (with <a href='http://matomo.org/docs/analytics-api/reference/#toc-metric-definitions' rel='noreferrer' target='_blank'>general analytics metrics</a> for each keyword), "getWebsites" returns referrer websites (along with the full Referrer URL if the parameter &expanded=1 is set).
+ * For example, "getKeywords" returns all search engine keywords (with <a href='https://developer.matomo.org/api-reference/reporting-api#api-response-metric-definitions' rel='noreferrer' target='_blank'>general analytics metrics</a> for each keyword), "getWebsites" returns referrer websites (along with the full Referrer URL if the parameter &expanded=1 is set).
  * "getReferrerType" returns the Referrer overview report. "getCampaigns" returns the list of all campaigns (and all campaign keywords if the parameter &expanded=1 is set).
  *
  * @method static \Piwik\Plugins\Referrers\API getInstance()
@@ -52,20 +52,22 @@ class API extends \Piwik\Plugin\API
 
         $totalVisits = array_sum($dataTableReferrersType->getColumn(Metrics::INDEX_NB_VISITS));
 
-        $percentColumns = [
-            'Referrers_visitorsFromDirectEntry',
-            'Referrers_visitorsFromSearchEngines',
-            'Referrers_visitorsFromCampaigns',
-            'Referrers_visitorsFromSocialNetworks',
-            'Referrers_visitorsFromWebsites',
-        ];
-        foreach ($percentColumns as $column) {
-            $dataTable->filter(ColumnCallbackAddColumnPercentage::class, [
-                $column . '_percent',
-                $column,
-                $totalVisits,
-            ]);
-        }
+        $dataTable->filter(function (DataTable $table) use ($totalVisits) {
+            $processedMetrics = $table->getMetadata(DataTable::EXTRA_PROCESSED_METRICS_METADATA_NAME) ?: [];
+
+            $percentColumns = [
+                'Referrers_visitorsFromDirectEntry',
+                'Referrers_visitorsFromSearchEngines',
+                'Referrers_visitorsFromCampaigns',
+                'Referrers_visitorsFromSocialNetworks',
+                'Referrers_visitorsFromWebsites',
+            ];
+            foreach ($percentColumns as $column) {
+                $processedMetrics[] = new VisitorsFromReferrerPercent($column . '_percent', $column, $totalVisits);
+            }
+
+            $table->setMetadata(DataTable::EXTRA_PROCESSED_METRICS_METADATA_NAME, $processedMetrics);
+        });
 
         if (!empty($requestedColumns)) {
             $requestedColumns = Piwik::getArrayFromApiParameter($columns);
@@ -183,7 +185,7 @@ class API extends \Piwik\Plugin\API
     {
         $idSites = Site::getIdSitesFromIdSitesString($idSite);
 
-        if (count($idSites) > 1) {
+        if (count($idSites) > 1 || 'all' === $idSite) {
             throw new Exception("Referrers.$method with multiple sites is not supported (yet).");
         }
     }
@@ -324,16 +326,21 @@ class API extends \Piwik\Plugin\API
     public function getKeywordsFromSearchEngineId($idSite, $period, $date, $idSubtable, $segment = false)
     {
         Piwik::checkUserHasViewAccess($idSite);
+
         $dataTable = $this->getDataTable(Archiver::SEARCH_ENGINES_RECORD_NAME, $idSite, $period, $date, $segment, $expanded = false, $idSubtable);
 
         // get the search engine and create the URL to the search result page
         $searchEngines = $this->getSearchEngines($idSite, $period, $date, $segment);
         $searchEngines->applyQueuedFilters();
-        $searchEngine  = $searchEngines->getRowFromIdSubDataTable($idSubtable)->getColumn('label');
+        $row  = $searchEngines->getRowFromIdSubDataTable($idSubtable);
 
         $dataTable->filter('Piwik\Plugins\Referrers\DataTable\Filter\KeywordsFromSearchEngineId', array($searchEngines, $idSubtable));
-        $dataTable->filter('AddSegmentByLabel', array('referrerKeyword'));
-        $dataTable->queueFilter('PrependSegment', array('referrerName=='.$searchEngine.';referrerType==search;'));
+        $dataTable->filter('AddSegmentByLabel', ['referrerKeyword']);
+
+        if (!empty($row)) {
+            $searchEngine = $row->getColumn('label');
+            $dataTable->queueFilter('PrependSegment', ['referrerName==' . $searchEngine . ';referrerType==search;']);
+        }
 
         return $dataTable;
     }

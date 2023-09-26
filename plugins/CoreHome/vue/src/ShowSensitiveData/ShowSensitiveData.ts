@@ -6,7 +6,7 @@
  */
 
 import { DirectiveBinding } from 'vue';
-import translate from '../translate';
+import { translate } from '../translate';
 
 interface ShowSensitiveDataArgs {
   sensitiveData: string;
@@ -38,9 +38,9 @@ export default {
 
     let protectedData = '';
     if (showCharacters > 0) {
-      protectedData += sensitiveData.substr(0, showCharacters);
+      protectedData += sensitiveData.slice(0, showCharacters);
     }
-    protectedData += sensitiveData.substr(showCharacters).replace(/./g, '*');
+    protectedData += sensitiveData.slice(showCharacters).replace(/./g, '*');
     element.html(protectedData);
 
     function onClickHandler() {

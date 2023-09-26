@@ -27,7 +27,6 @@ use Piwik\Date;
 use Piwik\Db;
 use Piwik\Piwik;
 use Piwik\Plugins\SegmentEditor\API;
-use Piwik\Plugins\SitesManager\SitesManager;
 use Piwik\Segment;
 use Piwik\Tests\Framework\Fixture;
 use Piwik\Tests\Framework\TestCase\IntegrationTestCase;
@@ -64,7 +63,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -168,7 +167,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -526,7 +525,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -607,7 +606,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -739,7 +738,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -876,7 +875,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -915,7 +914,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -954,7 +953,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -1000,7 +999,7 @@ class QueueConsumerTest extends IntegrationTestCase
             3,
             24,
             new Model(),
-            new SegmentArchiving('beginning_of_time'),
+            new SegmentArchiving(),
             $cronArchive,
             new RequestParser(true),
             $archiveFilter
@@ -1229,7 +1228,7 @@ class QueueConsumerTest extends IntegrationTestCase
             ->disableOriginalConstructor()
             ->getMock();
 
-        return new QueueConsumer(new NullLogger(), null, null, null, new Model(), new SegmentArchiving(null), $mockCronArchive, $cliRequestProcessor);
+        return new QueueConsumer(new NullLogger(), null, null, null, new Model(), new SegmentArchiving(), $mockCronArchive, $cliRequestProcessor);
     }
 
     protected static function configureFixture($fixture)

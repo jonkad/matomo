@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Matomo - free/libre analytics platform
  *
@@ -6,6 +7,7 @@
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  *
  */
+
 namespace Piwik\Plugins\SitesManager;
 
 use Piwik\Access;
@@ -14,15 +16,17 @@ use Piwik\Common;
 use Piwik\Config;
 use Piwik\Container\StaticContainer;
 use Piwik\Date;
-use Piwik\Exception\UnexpectedWebsiteFoundException;
 use Piwik\Option;
 use Piwik\Piwik;
 use Piwik\Plugins\CoreHome\SystemSummary;
 use Piwik\Settings\Storage\Backend\MeasurableSettingsTable;
+use Piwik\SettingsPiwik;
 use Piwik\Tracker\Cache;
 use Piwik\Tracker\FingerprintSalt;
 use Piwik\Tracker\Model as TrackerModel;
 use Piwik\Session\SessionNamespace;
+use Piwik\Url;
+use Piwik\View;
 
 /**
  *
@@ -41,22 +45,26 @@ class SitesManager extends \Piwik\Plugin
     const SITE_TYPE_SHOPIFY = 'shopify';
     const SITE_TYPE_WEBFLOW = 'webflow';
     const SITE_TYPE_DRUPAL = 'drupal';
+    const JS_FRAMEWORK_UNKNOWN = 'unknown';
+    const JS_FRAMEWORK_VUE = 'vue';
+    const JS_FRAMEWORK_REACT = 'react';
 
     /**
      * @see \Piwik\Plugin::registerEvents
      */
     public function registerEvents()
     {
-        return array(
-            'AssetManager.getJavaScriptFiles'        => 'getJsFiles',
+        return [
             'AssetManager.getStylesheetFiles'        => 'getStylesheetFiles',
-            'Tracker.Cache.getSiteAttributes'        => array('function' => 'recordWebsiteDataInCache', 'before' => true),
+            'Tracker.Cache.getSiteAttributes'        => ['function' => 'recordWebsiteDataInCache', 'before' => true],
             'Tracker.setTrackerCacheGeneral'         => 'setTrackerCacheGeneral',
             'Translate.getClientSideTranslationKeys' => 'getClientSideTranslationKeys',
             'SitesManager.deleteSite.end'            => 'onSiteDeleted',
             'System.addSystemSummaryItems'           => 'addSystemSummaryItems',
             'Request.dispatch'                       => 'redirectDashboardToWelcomePage',
-        );
+            'Template.noDataPageGTMTabInstructions'  => 'noDataPageGTMTabInstructions',
+            'Template.noDataPageWordpressTabInstructions'  => 'noDataPageWordpressTabInstructions',
+        ];
     }
 
     public static function isSitesAdminEnabled()
@@ -75,9 +83,16 @@ class SitesManager extends \Piwik\Plugin
     public function addSystemSummaryItems(&$systemSummary)
     {
         if (self::isSitesAdminEnabled()) {
-            $websites = Request::processRequest('SitesManager.getAllSites', array('filter_limit' => '-1'));
+            $websites = Request::processRequest('SitesManager.getAllSites', ['filter_limit' => '-1']);
             $numWebsites = count($websites);
-            $systemSummary[] = new SystemSummary\Item($key = 'websites', Piwik::translate('CoreHome_SystemSummaryNWebsites', $numWebsites), $value = null, $url = array('module' => 'SitesManager', 'action' => 'index'), $icon = '', $order = 10);
+            $systemSummary[] = new SystemSummary\Item(
+                'websites',
+                Piwik::translate('CoreHome_SystemSummaryNWebsites', $numWebsites),
+                null,
+                ['module' => 'SitesManager', 'action' => 'index'],
+                '',
+                10
+            );
         }
     }
 
@@ -163,22 +178,6 @@ class SitesManager extends \Piwik\Plugin
     }
 
     /**
-     * Get JavaScript files
-     */
-    public function getJsFiles(&$jsFiles)
-    {
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/api-helper.service.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/api-site.service.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/api-core.service.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/sites-manager-type-model.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/sites-manager-admin-sites-model.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/multiline-field.directive.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/edit-trigger.directive.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/sites-manager.controller.js";
-        $jsFiles[] = "plugins/SitesManager/angularjs/sites-manager/sites-manager-site.controller.js";
-    }
-
-    /**
      * Hooks when a website tracker cache is flushed (website updated, cache deleted, or empty cache)
      * Will record in the tracker config file all data needed for this website in Tracker.
      *
@@ -201,6 +200,7 @@ class SitesManager extends \Piwik\Plugin
         $array['excluded_ips'] = $this->getTrackerExcludedIps($website);
         $array['excluded_parameters'] = self::getTrackerExcludedQueryParameters($website);
         $array['excluded_user_agents'] = self::getExcludedUserAgents($website);
+        $array['excluded_referrers'] = self::getExcludedReferrers($website);
         $array['keep_url_fragment'] = self::shouldKeepURLFragmentsFor($website);
         $array['sitesearch'] = $website['sitesearch'];
         $array['sitesearch_keyword_parameters'] = $this->getTrackerSearchKeywordParameters($website);
@@ -211,7 +211,7 @@ class SitesManager extends \Piwik\Plugin
 
         // we make sure to have the fingerprint salts for the last 3 days incl tmrw in the cache so we don't need to
         // query the DB directly for these days
-        $datesToGenerateSalt = array(Date::now()->addDay(1), Date::now(), Date::now()->subDay(1), Date::now()->subDay(2));
+        $datesToGenerateSalt = [Date::now()->addDay(1), Date::now(), Date::now()->subDay(1), Date::now()->subDay(2)];
 
         $fingerprintSaltKey = new FingerprintSalt();
         foreach ($datesToGenerateSalt as $date) {
@@ -225,6 +225,7 @@ class SitesManager extends \Piwik\Plugin
         Access::doAsSuperUser(function () use (&$cache) {
             $cache['global_excluded_user_agents'] = self::filterBlankFromCommaSepList(API::getInstance()->getExcludedUserAgentsGlobal());
             $cache['global_excluded_ips'] = self::filterBlankFromCommaSepList(API::getInstance()->getExcludedIpsGlobal());
+            $cache['global_excluded_referrers'] = self::filterBlankFromCommaSepList(API::getInstance()->getExcludedReferrersGlobal());
         });
     }
 
@@ -251,7 +252,7 @@ class SitesManager extends \Piwik\Plugin
     {
         if ($site['keep_url_fragment'] == self::KEEP_URL_FRAGMENT_YES) {
             return true;
-        } else if ($site['keep_url_fragment'] == self::KEEP_URL_FRAGMENT_NO) {
+        } elseif ($site['keep_url_fragment'] == self::KEEP_URL_FRAGMENT_NO) {
             return false;
         }
 
@@ -289,7 +290,7 @@ class SitesManager extends \Piwik\Plugin
 
         $excludedIps .= ',' . $globalExcludedIps;
 
-        $ipRanges = array();
+        $ipRanges = [];
         foreach (explode(',', $excludedIps) as $ip) {
             $ipRange = API::getInstance()->getIpsForRange($ip);
             if ($ipRange !== false) {
@@ -311,6 +312,20 @@ class SitesManager extends \Piwik\Plugin
         $excludedUserAgents = API::getInstance()->getExcludedUserAgentsGlobal();
         $excludedUserAgents .= ',' . $website['excluded_user_agents'];
         return self::filterBlankFromCommaSepList($excludedUserAgents);
+    }
+
+    /**
+     * Returns the array of excluded referrers. Filters out
+     * any garbage data & trims each entry.
+     *
+     * @param array $website The full set of information for a site.
+     * @return array
+     */
+    private static function getExcludedReferrers($website)
+    {
+        $excludedReferrers = API::getInstance()->getExcludedReferrersGlobal();
+        $excludedReferrers .= ',' . $website['excluded_referrers'];
+        return self::filterBlankFromCommaSepList($excludedReferrers);
     }
 
     /**
@@ -350,7 +365,7 @@ class SitesManager extends \Piwik\Plugin
      */
     private function getTrackerHosts($urls)
     {
-        $hosts = array();
+        $hosts = [];
         foreach ($urls as $url) {
             $url = parse_url($url);
             if (isset($url['host'])) {
@@ -368,12 +383,28 @@ class SitesManager extends \Piwik\Plugin
             self::SITE_TYPE_SHOPIFY => 'https://matomo.org/faq/new-to-piwik/how-do-i-install-the-matomo-tracking-code-on-my-shopify-store',
             self::SITE_TYPE_SQUARESPACE => 'https://matomo.org/faq/new-to-piwik/how-do-i-integrate-matomo-with-squarespace-website',
             self::SITE_TYPE_WIX => 'https://matomo.org/faq/new-to-piwik/how-do-i-install-the-matomo-analytics-tracking-code-on-wix',
-            self::SITE_TYPE_WORDPRESS => 'https://matomo.org/faq/new-to-piwik/how-do-i-install-the-matomo-tracking-code-on-wordpress',
+            self::SITE_TYPE_WORDPRESS => 'https://matomo.org/faq/new-to-piwik/how-do-i-install-the-matomo-tracking-code-on-wordpress/',
             self::SITE_TYPE_DRUPAL => 'https://matomo.org/faq/new-to-piwik/how-to-integrate-with-drupal/',
             self::SITE_TYPE_WEBFLOW => 'https://matomo.org/faq/new-to-piwik/how-do-i-install-the-matomo-tracking-code-on-webflow',
         ];
 
         return $map[$siteType] ?? false;
+    }
+
+    public static function getInstructionByCms(?string $cms): string
+    {
+        if ($cms === self::SITE_TYPE_UNKNOWN || $cms === self::SITE_TYPE_WORDPRESS) {
+            return '';
+        }
+
+        return Piwik::translate(
+            'SitesManager_SiteWithoutDataDetectedSite',
+            [
+                ucfirst($cms),
+                '<a target="_blank" rel="noreferrer noopener" href="' . self::getInstructionUrlBySiteType($cms) . '">',
+                '</a>'
+            ]
+        );
     }
 
     public function getClientSideTranslationKeys(&$translationKeys)
@@ -464,5 +495,66 @@ class SitesManager extends \Piwik\Plugin
         $translationKeys[] = "SitesManager_EmailInstructionsButton";
         $translationKeys[] = "SitesManager_EmailInstructionsSubject";
         $translationKeys[] = "SitesManager_JsTrackingTagHelp";
+        $translationKeys[] = "SitesManager_SiteWithoutDataSinglePageApplication";
+        $translationKeys[] = "SitesManager_SiteWithoutDataSinglePageApplicationDescription";
+        $translationKeys[] = 'SitesManager_SiteWithoutDataTitle';
+        $translationKeys[] = 'SitesManager_SiteWithoutDataDescription';
+        $translationKeys[] = 'SitesManager_SiteWithoutDataMessageDisappears';
+        $translationKeys[] = 'SitesManager_SiteWithoutDataChoosePreferredWay';
+        $translationKeys[] = 'SitesManager_DetectingYourSite';
+        $translationKeys[] = 'SitesManager_SiteWithoutDataIgnoreMessage';
+        $translationKeys[] = "SitesManager_SiteWithoutDataCloudflareDescription";
+        $translationKeys[] = "SitesManager_GlobalListExcludedReferrers";
+        $translationKeys[] = "SitesManager_GlobalListExcludedReferrersDesc";
+        $translationKeys[] = "SitesManager_ExcludedReferrers";
+        $translationKeys[] = "SitesManager_ExcludedReferrersHelp";
+        $translationKeys[] = "SitesManager_ExcludedReferrersHelpDetails";
+        $translationKeys[] = "SitesManager_ExcludedReferrersHelpExamples";
+        $translationKeys[] = "SitesManager_ExcludedReferrersHelpSubDomains";
+        $translationKeys[] = 'Goals_Optional';
+        $translationKeys[] = "SitesManager_SiteWithoutDataGoogleTagManager";
+        $translationKeys[] = "SitesManager_SiteWithoutDataGoogleTagManagerDescription";
+        $translationKeys[] = "SitesManager_SiteWithoutDataWordpressDescription";
+        $translationKeys[] = "SitesManager_SiteWithoutDataStartTrackingDataHeader";
+        $translationKeys[] = "SitesManager_SiteWithoutDataStartTrackingDataDescriptionLine1";
+        $translationKeys[] = "SitesManager_SiteWithoutDataStartTrackingDataDescriptionLine2";
+        $translationKeys[] = "SitesManager_EmailInstructionsButtonText";
+        $translationKeys[] = "SitesManager_SiteWithoutDataIgnorePage";
+        $translationKeys[] = "SitesManager_DemoSiteButtonText";
+        $translationKeys[] = "SitesManager_SiteWithoutDataVueDescription";
+        $translationKeys[] = "SitesManager_SiteWithoutDataReactDescription";
+    }
+
+    public function noDataPageGTMTabInstructions(&$out)
+    {
+        Piwik::checkUserHasSomeViewAccess();
+        $piwikUrl = Url::getCurrentUrlWithoutFileName();
+        $jsTag = Request::processRequest('SitesManager.getJavascriptTag', ['idSite' => Common::getRequestVar('idSite'), 'piwikUrl' => $piwikUrl]);
+        $view = new View("@SitesManager/_gtmTabInstructions");
+        $view->jsTag = $jsTag;
+        $out = $view->render();
+    }
+
+    public function noDataPageWordpressTabInstructions(&$out)
+    {
+        Piwik::checkUserHasSomeViewAccess();
+        $view = new View("@SitesManager/_wordpressTabInstructions");
+        $faqLink = 'https://matomo.org/faq/general/faq_114/';
+        $authLink = '';
+        if (Piwik::isUserHasSomeViewAccess()) {
+            $idSite = Common::getRequestVar('idSite', 0, 'int');
+            $period = Common::getRequestVar('period', 'day', 'string');
+            $date = Common::getRequestVar('date', 'yesterday', 'string');
+            $authLink = SettingsPiwik::getPiwikUrl() . 'index.php?' . Url::getQueryStringFromParameters([
+                    'idSite' => $idSite,
+                    'date' => $date,
+                    'period' => $period,
+                    'module' => 'UsersManager',
+                    'action' => 'addNewToken',
+                ]);
+        }
+        $view->authLink = $authLink;
+        $view->faqLink = $faqLink;
+        $out = $view->render();
     }
 }

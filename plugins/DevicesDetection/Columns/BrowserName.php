@@ -10,7 +10,6 @@ namespace Piwik\Plugins\DevicesDetection\Columns;
 
 use DeviceDetector\Parser\Client\Browser;
 use Piwik\Columns\DimensionSegmentFactory;
-use Piwik\Common;
 use Piwik\Metrics\Formatter;
 use Piwik\Plugin\Segment;
 use Piwik\Segment\SegmentsList;
@@ -77,8 +76,7 @@ class BrowserName extends Base
      */
     public function onNewVisit(Request $request, Visitor $visitor, $action)
     {
-        $userAgent = $request->getUserAgent();
-        $parser    = $this->getUAParser($userAgent);
+        $parser    = $this->getUAParser($request->getUserAgent(), $request->getClientHints());
 
         $aBrowserInfo = $parser->getClient();
 

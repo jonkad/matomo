@@ -139,7 +139,7 @@ class ComputedMetric extends ProcessedMetric
                 $metric1 = $this->getMetricsList()->getMetric($this->metric1);
                 if ($metric1) {
                     $dimension = $metric1->getDimension();
-                    if ($dimension) {
+                    if ($dimension && $dimension->getType() != Dimension::TYPE_BOOL) {
                         $this->type = $dimension->getType();
                     }
                 }
@@ -167,10 +167,7 @@ class ComputedMetric extends ProcessedMetric
             case Dimension::TYPE_DURATION_S:
                 return $formatter->getPrettyTimeFromSeconds(round($value), $displayAsSentence = true);
             case Dimension::TYPE_DURATION_MS:
-                $val = number_format($value / 1000, 2);
-                if ($val > 60) {
-                    $val = round($val);
-                }
+                $val = round(($value / 1000), ($value / 1000) > 60 ? 0 : 2);
                 return $formatter->getPrettyTimeFromSeconds($val, $displayAsSentence = true);
             case Dimension::TYPE_PERCENT:
                 return $formatter->getPrettyPercentFromQuotient($value);
@@ -261,5 +258,10 @@ class ComputedMetric extends ProcessedMetric
             $this->idSite = Common::getRequestVar('idSite', 0, 'int');
         }
         return !empty($this->idSite); // skip formatting if there is no site to get currency info from
+    }
+
+    public function getSemanticType(): ?string
+    {
+        return $this->getDetectedType();
     }
 }

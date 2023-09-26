@@ -13,7 +13,7 @@ import {
 } from 'vue';
 import MatomoUrl from '../MatomoUrl/MatomoUrl';
 import Matomo from '../Matomo/Matomo';
-import translate from '../translate';
+import { translate } from '../translate';
 import Periods from '../Periods/Periods';
 import AjaxHelper from '../AjaxHelper/AjaxHelper';
 import SegmentsStore from '../Segmentation/Segments.store';
@@ -301,6 +301,8 @@ export default class ComparisonsStore {
 
     if (matomoModule === 'CoreUpdater'
       || matomoModule === 'Installation'
+      || matomoModule === 'Overlay'
+      || window.piwik.isPagesComparisonApiDisabled
     ) {
       this.privateState.comparisonsDisabledFor = [];
       return;

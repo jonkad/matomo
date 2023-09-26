@@ -255,11 +255,24 @@ class Controller extends ControllerAdmin
     }
 
     /**
-     * Shows the "Track Visits" checkbox.
+     * Shows the "Track Visits" checkbox - iFrame (deprecated)
      */
     public function optOut()
     {
-        return $this->optOutManager->getOptOutView()->render();
+        return $this->optOutManager->getOptOutViewIframe()->render();
+    }
+
+    /**
+     * Shows the Javascript opt out
+     *
+     * @return string
+     * @throws Exception
+     */
+    public function optOutJS(): string
+    {
+        Common::sendHeader('Content-Type: application/javascript; charset=utf-8');
+        Common::sendHeader('Cache-Control: no-store');
+        return $this->optOutManager->getOptOutJS();
     }
 
     public function uploadCustomLogo()
@@ -314,6 +327,7 @@ class Controller extends ControllerAdmin
         $mail = Config::getInstance()->mail;
         $mail['noreply_email_address'] = Config::getInstance()->General['noreply_email_address'];
         $mail['noreply_email_name'] = Config::getInstance()->General['noreply_email_name'];
+        $mail['password'] = !empty($mail['password']) ? '*****' : '';
         $view->mail = $mail;
     }
 

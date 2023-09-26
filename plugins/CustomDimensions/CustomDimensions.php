@@ -191,20 +191,13 @@ class CustomDimensions extends Plugin
 
     public function getJsFiles(&$jsFiles)
     {
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/model.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/list.controller.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/list.directive.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/edit.controller.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/edit.directive.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/manage.controller.js";
-        $jsFiles[] = "plugins/CustomDimensions/angularjs/manage/manage.directive.js";
         $jsFiles[] = "plugins/CustomDimensions/javascripts/rowactions.js";
     }
 
     public function getStylesheetFiles(&$stylesheets)
     {
-        $stylesheets[] = "plugins/CustomDimensions/angularjs/manage/edit.directive.less";
-        $stylesheets[] = "plugins/CustomDimensions/angularjs/manage/list.directive.less";
+        $stylesheets[] = "plugins/CustomDimensions/vue/src/Edit/Edit.less";
+        $stylesheets[] = "plugins/CustomDimensions/vue/src/List/List.less";
         $stylesheets[] = "plugins/CustomDimensions/stylesheets/reports.less";
     }
 
@@ -288,8 +281,10 @@ class CustomDimensions extends Plugin
         $translationKeys[] = 'CustomDimensions_CustomDimensions';
         $translationKeys[] = 'CustomDimensions_CustomDimensionsIntro';
         $translationKeys[] = 'CustomDimensions_CustomDimensionsIntroNext';
+        $translationKeys[] = 'CustomDimensions_ScopeTitleVisit';
         $translationKeys[] = 'CustomDimensions_ScopeDescriptionVisit';
         $translationKeys[] = 'CustomDimensions_ScopeDescriptionVisitMoreInfo';
+        $translationKeys[] = 'CustomDimensions_ScopeTitleAction';
         $translationKeys[] = 'CustomDimensions_ScopeDescriptionAction';
         $translationKeys[] = 'CustomDimensions_ScopeDescriptionActionMoreInfo';
         $translationKeys[] = 'CustomDimensions_IncreaseAvailableCustomDimensionsTitle';
@@ -322,6 +317,9 @@ class CustomDimensions extends Plugin
         $translationKeys[] = 'CustomDimensions_ColumnUniqueActions';
         $translationKeys[] = 'CustomDimensions_ColumnAvgTimeOnDimension';
         $translationKeys[] = 'CustomDimensions_CustomDimensionId';
+        $translationKeys[] = 'General_Update';
+        $translationKeys[] = 'General_Create';
+        $translationKeys[] = 'CustomDimensions_UrlQueryStringParameter';
     }
 
     public function addConversionInformation(&$conversion, $visitInformation, Tracker\Request $request)

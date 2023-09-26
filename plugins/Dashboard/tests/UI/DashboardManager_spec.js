@@ -95,9 +95,18 @@ describe("DashboardManager", function () {
         await page.waitForNetworkIdle();
         await page.waitForSelector('.widget');
         await page.waitForNetworkIdle();
+        await page.waitForTimeout(100); // wait for widgets to render fully
 
         expect(await page.screenshot({ fullPage: true })).to.matchImage('create_new');
     });
+
+
+    it("should load widgets on smaller screen", async function(){
+        await page.webpage.setViewport({ width: 815, height: 512 });
+        await page.waitForTimeout(500);
+        expect(await page.screenshot({ fullPage: true })).to.matchImage('small_screen');
+    });
+
 
     it("should remove dashboard when remove dashboard process completed", async function() {
         await page.click('.dashboard-manager .title');
@@ -107,6 +116,9 @@ describe("DashboardManager", function () {
 
         await page.mouse.move(-10, -10);
         await page.waitForTimeout(500);
+        await page.waitForNetworkIdle();
+
+        await page.waitForSelector('.widget');
         await page.waitForNetworkIdle();
 
         expect(await page.screenshot({ fullPage: true })).to.matchImage('removed');

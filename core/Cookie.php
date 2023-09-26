@@ -44,6 +44,11 @@ class Cookie
     protected $path = '';
 
     /**
+     * @var string
+     */
+    protected $keyStore = false;
+
+    /**
      * Restrict cookie to a domain (or subdomains)
      * @var string
      */
@@ -146,7 +151,10 @@ class Cookie
             }
         }
 
-        $Expires = $this->formatExpireTime($Expires);
+        // Format expire time only for non session cookies
+        if (0 !== $Expires) {
+            $Expires = $this->formatExpireTime($Expires);
+        }
 
         $header = 'Set-Cookie: ' . rawurlencode($Name) . '=' . rawurlencode($Value)
             . (empty($Expires) ? '' : '; expires=' . $Expires)
@@ -453,7 +461,7 @@ class Cookie
             } else {
                 $userAgent = Http::getUserAgent();
                 $ddFactory = StaticContainer::get(\Piwik\DeviceDetector\DeviceDetectorFactory::class);
-                $deviceDetector = $ddFactory->makeInstance($userAgent);
+                $deviceDetector = $ddFactory->makeInstance($userAgent, Http::getClientHintsFromServerVariables());
                 $deviceDetector->parse();
 
                 $browserFamily = \DeviceDetector\Parser\Client\Browser::getBrowserFamily($deviceDetector->getClient('short_name'));

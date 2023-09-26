@@ -13,7 +13,6 @@ use Piwik\Config;
 use Piwik\Common;
 use Piwik\DataAccess\LogAggregator;
 use Piwik\Date;
-use Piwik\Db;
 use Piwik\Period;
 use Piwik\Segment;
 use Piwik\Site;
@@ -176,11 +175,18 @@ class LogAggregatorTest extends IntegrationTestCase
                 // ignore General error: 1193 Unknown system variable 'sql_require_primary_key'
                 try {
                     // on mariadb this might work
-                    $this->logAggregator->getDb()->exec('SET SESSION innodb_force_primary_key=' . $val);
+                    $this->logAggregator->getDb()->exec('SET GLOBAL innodb_force_primary_key = ' . ($val ? 'on' : 'off'));
                 } catch (\Exception $e) {
                     if ($this->logAggregator->getDb()->isErrNo($e, 1193)) {
                         // ignore General error: 1193 Unknown system variable 'sql_require_primary_key'
                         return;
+                    } elseif ($this->logAggregator->getDb()->isErrNo($e, 1229)) {
+                        try {
+                            // Mariadb: General error: 1229 Variable 'innodb_force_primary_key' is a GLOBAL variable and should be set with SET GLOBAL
+                            $this->logAggregator->getDb()->exec('SET GLOBAL innodb_force_primary_key=' . $val);
+                        } catch (\Exception $e) {
+                            return;
+                        }
                     } else {
                         throw $e;
                     }

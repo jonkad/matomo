@@ -19,13 +19,16 @@
       >
         <Field
           :full-width="true"
-          v-model="item[field1.key]"
+          :model-value="item[field1.key]"
           :options="field1.availableValues"
           @update:modelValue="onEntryChange(index, field1.key, $event)"
+          :model-modifiers="field1.modelModifiers"
           :placeholder="' '"
           :uicontrol="field1.uiControl"
           :name="`${name}-p1-${index}`"
           :title="field1.title"
+          :template-file="field1.templateFile"
+          :component="field1.component"
         >
         </Field>
       </div>
@@ -37,11 +40,14 @@
           :full-width="true"
           :options="field2.availableValues"
           @update:modelValue="onEntryChange(index, field2.key, $event)"
-          v-model="item[field2.key]"
+          :model-value="item[field2.key]"
+          :model-modifiers="field2.modelModifiers"
           :placeholder="' '"
           :uicontrol="field2.uiControl"
           :name="`${name}-p2-${index}`"
           :title="field2.title"
+          :template-file="field2.templateFile"
+          :component="field2.component"
         >
         </Field>
       </div>
@@ -53,10 +59,13 @@
           :full-width="true"
           :options="field3.availableValues"
           @update:modelValue="onEntryChange(index, field3.key, $event)"
-          v-model="item[field3.key]"
+          :model-value="item[field3.key]"
+          :model-modifiers="field3.modelModifiers"
           :placeholder="' '"
           :uicontrol="field3.uiControl"
           :title="field3.title"
+          :template-file="field3.templateFile"
+          :component="field3.component"
         >
         </Field>
       </div>
@@ -68,10 +77,13 @@
           :full-width="true"
           :options="field4.availableValues"
           @update:modelValue="onEntryChange(index, field4.key, $event)"
-          v-model="item[field4.key]"
+          :model-value="item[field4.key]"
+          :model-modifiers="field4.modelModifiers"
           :placeholder="' '"
           :uicontrol="field4.uiControl"
           :title="field4.title"
+          :template-file="field4.templateFile"
+          :component="field4.component"
         >
         </Field>
       </div>

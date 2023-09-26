@@ -396,6 +396,14 @@
      ui-control-attributes='{"field1":{"key":"index","title":"Index","uiControl":"text","availableValues":null},"field2":{"key":"value","title":"Value","uiControl":"text","availableValues":null},"field3":{"key":"value2","title":"Value","uiControl":"text","availableValues":null},"field4":{"key":"value3","title":"Value","uiControl":"text","availableValues":null}}'>
 </div>
 
+<div piwik-field uicontrol="multituple" name="multitupletextfullwidth"
+     data-title="Multiple values full width (four)"
+     full-width="true"
+     value="[]"
+     inline-help="Multi Tuple text and text full width"
+     ui-control-attributes='{"field1":{"key":"index","title":"Index","uiControl":"text","availableValues":null},"field2":{"key":"value","title":"Value","uiControl":"text","availableValues":null},"field3":{"key":"value2","title":"Value","uiControl":"text","availableValues":null},"field4":{"key":"value3","title":"Value","uiControl":"text","availableValues":null}}'>
+</div>
+
 <div piwik-field uicontrol="multituple" name="multitupletextvalue"
      data-title="Multiple values with values (four)"
      value='[{"index": "test", "value":"myfoo"},{"index": "test 2", "value":"myfoo 2"}]'
@@ -500,13 +508,15 @@
 
         <div class="demo">
             <p>Or you can display a code block:</p>
-            <pre piwik-select-on-focus>&lt;!-- Matomo --&gt;
+            <div>
+                 <pre matomo-copy-to-clipboard>&lt;!-- Matomo --&gt;
 &lt;script type=&quot;text/javascript&quot;&gt;
 &lt;/script&gt;
 &lt;!-- End Matomo Code --&gt;</pre>
+            </div>
         </div>
         <div class="demo-code">
-            &lt;pre piwik-select-on-focus&gt;...&lt;/pre&gt;
+            &lt;div&gt;&lt;pre matomo-copy-to-clipboard&gt;...&lt;/pre&gt;&lt;/div&gt;
         </div>
 
         <h2>Tables</h2>
@@ -632,6 +642,8 @@
                     'Navigation': [
                         'arrow-left',
                         'arrow-right',
+                        'arrow-left-2',
+                        'arrow-right-2',
                         'arrow-top',
                         'arrow-bottom',
                         'arrow-collapsed',
@@ -644,7 +656,11 @@
                         'more-horiz',
                         'more-verti',
                         'arrowup',
-                        'arrowdown'
+                        'arrowdown',
+                        'chevron-right',
+                        'chevron-left',
+                        'chevron-down',
+                        'chevron-up',
                     ],
                     'Window-Widget': [
                         'minimise',
@@ -720,6 +736,7 @@
                         'finance',
                         'folder',
                         'folder-charts',
+                        'github',
                         'open-source',
                         'puzzle',
                         'server',
@@ -741,7 +758,9 @@
                         'bug',
                         'upload',
                         'embed',
-                        'heart'
+                        'heart',
+                        'content-copy',
+                        'done'
                     ]
                 };
 

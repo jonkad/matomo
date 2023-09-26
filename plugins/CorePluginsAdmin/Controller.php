@@ -13,7 +13,6 @@ use Piwik\Access;
 use Piwik\API\Request;
 use Piwik\Common;
 use Piwik\Container\StaticContainer;
-use Piwik\ErrorHandler;
 use Piwik\Exception\MissingFilePermissionException;
 use Piwik\Filechecks;
 use Piwik\Filesystem;
@@ -26,7 +25,6 @@ use Piwik\Plugins\Login\PasswordVerifier;
 use Piwik\Plugins\Marketplace\Marketplace;
 use Piwik\Plugins\Marketplace\Controller as MarketplaceController;
 use Piwik\Plugins\Marketplace\Plugins;
-use Piwik\Settings\Storage\Backend\PluginSettingsTable;
 use Piwik\SettingsPiwik;
 use Piwik\SettingsServer;
 use Piwik\Translation\Translator;
@@ -111,7 +109,7 @@ class Controller extends Plugin\ControllerAdmin
         $nonce = Common::getRequestVar('nonce', null, 'string');
 
         if (!Nonce::verifyNonce(MarketplaceController::INSTALL_NONCE, $nonce)) {
-            throw new \Exception($this->translator->translate('General_ExceptionNonceMismatch'));
+            throw new \Exception($this->translator->translate('General_ExceptionSecurityCheckFailed'));
         }
 
         Nonce::discardNonce(MarketplaceController::INSTALL_NONCE);
@@ -206,6 +204,9 @@ class Controller extends Plugin\ControllerAdmin
         Piwik::checkUserHasSuperUserAccess();
 
         $view = $this->configureView('@CorePluginsAdmin/' . $template);
+
+        $this->securityPolicy->addPolicy('img-src', '*.matomo.org');
+        $this->securityPolicy->addPolicy('default-src', '*.matomo.org');
 
         $view->updateNonce = Nonce::getNonce(MarketplaceController::UPDATE_NONCE);
         $view->activateNonce = Nonce::getNonce(static::ACTIVATE_NONCE);
@@ -571,7 +572,7 @@ class Controller extends Plugin\ControllerAdmin
         $nonce = Common::getRequestVar('nonce', null, 'string');
 
         if (!Nonce::verifyNonce($nonceName, $nonce)) {
-            throw new \Exception($this->translator->translate('General_ExceptionNonceMismatch'));
+            throw new \Exception($this->translator->translate('General_ExceptionSecurityCheckFailed'));
         }
 
         Nonce::discardNonce($nonceName);

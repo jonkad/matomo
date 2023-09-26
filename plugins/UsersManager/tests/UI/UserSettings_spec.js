@@ -76,7 +76,7 @@ describe("UserSettings", function () {
             $('#userSettingsTable input#email').val('testlogin123@example.com').change();
         });
         await page.waitForTimeout(100);
-        await page.click('#userSettingsTable [piwik-save-button] .btn');
+        await page.click('#userSettingsTable .matomo-save-button .btn');
         await page.waitForTimeout(500); // wait for animation
 
         let pageWrap = await page.$('.modal.open');
@@ -84,7 +84,7 @@ describe("UserSettings", function () {
     });
 
     it('should load error when wrong password specified', async function () {
-        await page.type('.modal.open #currentPassword', 'foobartest123');
+        await page.type('.modal.open #currentUserPassword', 'foobartest123');
         btnNo = await page.jQuery('.modal.open .modal-action:not(.modal-no)');
         await btnNo.click();
         await page.waitForNetworkIdle();

@@ -100,7 +100,7 @@ var broadcast = {
 
         // hash doesn't contain the first # character.
         if (hash && 0 === (''+hash).indexOf('/')) {
-            hash = (''+hash).substr(1);
+            hash = (''+hash).slice(1);
         }
 
 
@@ -504,8 +504,6 @@ var broadcast = {
      *                       handler.
      */
     propagateNewPopoverParameter: function (handlerName, value) {
-        var $location = angular.element(document).injector().get('$location');
-
         var popover = '';
         if (handlerName && '' != value && 'undefined' != typeof value) {
             popover = handlerName + ':' + value;
@@ -524,15 +522,10 @@ var broadcast = {
             }
         }
 
-        var $window = piwikHelper.getAngularDependency('$window');
-        var urlStr = $window.location.hash;
-        urlStr = broadcast.updateParamValue('popover=' + encodeURIComponent(popover), urlStr);
-        urlStr = urlStr.replace(/^[#?]+/, '');
-        $location.search(urlStr);
-
-        setTimeout(function () {
-            angular.element(document).injector().get('$rootScope').$apply();
-        }, 1);
+        var MatomoUrl = window.CoreHome.MatomoUrl;
+        MatomoUrl.updateHash(
+          Object.assign({}, MatomoUrl.hashParsed.value, { popover }),
+        );
     },
 
     /**
@@ -780,8 +773,8 @@ var broadcast = {
      */
     getValueFromHash: function (param, url) {
         var hashStr = broadcast.getHashFromUrl(url);
-        if (hashStr.substr(0, 1) == '#') {
-            hashStr = hashStr.substr(1);
+        if (hashStr.slice(0, 1) == '#') {
+            hashStr = hashStr.slice(1);
         }
         hashStr = hashStr.split('#')[0];
 
@@ -802,7 +795,7 @@ var broadcast = {
         var lookFor = param + '=';
 
         if (url.indexOf('?') >= 0) {
-            url = url.substr(url.indexOf('?')+1);
+            url = url.slice(url.indexOf('?')+1);
         }
 
         var urlPieces = url.split('&');

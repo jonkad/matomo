@@ -6,7 +6,7 @@
 
 <template>
   <div
-    :title="translate('Feedback_RateFeatureTitle', $sanitize(title))"
+    :title="translate('Feedback_RateFeatureTitle', htmlEntities(title))"
     class="ratefeature"
   >
     <div
@@ -114,33 +114,33 @@
 
         <div v-if="likeReason || dislikeReason" class="messageContainer" style="text-align:left">
 
-          <p v-if="likeReason && likeReason == 'useful'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageLikeExtraUseful')">
+          <p v-if="likeReason && likeReason === 'useful'">
+            {{ translate('Feedback_RateFeatureLeaveMessageLikeExtraUseful') }}
           </p>
-          <p v-if="likeReason && likeReason == 'easy'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageLikeExtraEasy')">
+          <p v-if="likeReason && likeReason === 'easy'">
+            {{ translate('Feedback_RateFeatureLeaveMessageLikeExtraEasy') }}
           </p>
-          <p v-if="likeReason && likeReason == 'configurable'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageLikeExtraConfigurable')">
+          <p v-if="likeReason && likeReason === 'configurable'">
+            {{ translate('Feedback_RateFeatureLeaveMessageLikeExtraConfigurable') }}
           </p>
-          <p v-if="likeReason && likeReason == 'likeother'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageLikeExtra')">
+          <p v-if="likeReason && likeReason === 'likeother'">
+            {{ translate('Feedback_RateFeatureLeaveMessageLikeExtra') }}
           </p>
 
-          <p v-if="dislikeReason && dislikeReason == 'missingfeatures'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageDislikeExtraMissing')">
+          <p v-if="dislikeReason && dislikeReason === 'missingfeatures'">
+            {{ translate('Feedback_RateFeatureLeaveMessageDislikeExtraMissing') }}
           </p>
-          <p v-if="dislikeReason && dislikeReason == 'makeeasier'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageDislikeExtraEasier')">
+          <p v-if="dislikeReason && dislikeReason === 'makeeasier'">
+            {{ translate('Feedback_RateFeatureLeaveMessageDislikeExtraEasier') }}
           </p>
-          <p v-if="dislikeReason && dislikeReason == 'fixbugs'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageDislikeExtraBugs')">
+          <p v-if="dislikeReason && dislikeReason === 'fixbugs'">
+            {{ translate('Feedback_RateFeatureLeaveMessageDislikeExtraBugs') }}
           </p>
-          <p v-if="dislikeReason && dislikeReason == 'speedup'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageDislikeExtraSpeed')">
+          <p v-if="dislikeReason && dislikeReason === 'speedup'">
+            {{ translate('Feedback_RateFeatureLeaveMessageDislikeExtraSpeed') }}
           </p>
-          <p v-if="dislikeReason && dislikeReason == 'dislikeother'"
-             v-html="translate('Feedback_RateFeatureLeaveMessageDislikeExtra')">
+          <p v-if="dislikeReason && dislikeReason === 'dislikeother'">
+            {{ translate('Feedback_RateFeatureLeaveMessageDislikeExtra') }}
           </p>
 
           <div class="error-text" v-if="errorMessage">{{ errorMessage }}</div>
@@ -148,8 +148,8 @@
                     :class="{'has-error':errorMessage}"
                     v-model="feedbackMessage"/>
           <p v-if="likeReason || dislikeReason"
-            v-html="translate('Feedback_Policy',`
-            <a rel='nofollow' href='https://matomo.org/privacy-policy/' target='_blank'>`,'</a>')">
+            v-html="$sanitize(translate('Feedback_Policy',`
+            <a rel='nofollow' href='https://matomo.org/privacy-policy/' target='_blank'>`,'</a>'))">
           </p>
         </div>
 
@@ -175,7 +175,10 @@
       <div
         class="ui-confirm ratefeatureDialog"
       >
-        <h2 v-html="translate('Feedback_ThankYouHeart',`<i class='icon-heart red-text'></i>`)"></h2>
+        <h2 v-html="$sanitize(translate(
+          'Feedback_ThankYouHeart',
+          `<i class='icon-heart red-text'></i>`,
+        ))"></h2>
         <div
           v-if="like"
         >
@@ -194,10 +197,8 @@
 
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { MatomoDialog, AjaxHelper } from 'CoreHome';
+import { Matomo, MatomoDialog, AjaxHelper } from 'CoreHome';
 import ReviewLinks from '../ReviewLinks/ReviewLinks.vue';
-
-const { $ } = window;
 
 interface RateFeatureState {
   like: boolean;
@@ -273,13 +274,16 @@ export default defineComponent({
         message: this.feedbackMessage,
       }).then((res) => {
         if (res.value === 'success') {
-          $('.modal').modal('close');
+          this.showFeedbackForm = false;
           this.ratingDone = true;
           this.feedbackMessage = '';
         } else {
           this.errorMessage = res.value;
         }
       });
+    },
+    htmlEntities(v: string) {
+      return Matomo.helper.htmlEntities(v);
     },
   },
 });

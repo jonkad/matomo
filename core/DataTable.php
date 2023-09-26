@@ -11,7 +11,6 @@ namespace Piwik;
 
 use Closure;
 use Exception;
-use Piwik\Archive\DataTableFactory;
 use Piwik\DataTable\DataTableInterface;
 use Piwik\DataTable\Manager;
 use Piwik\DataTable\Renderer\Html;
@@ -220,6 +219,8 @@ class DataTable implements DataTableInterface, \IteratorAggregate, \ArrayAccess
      */
     const EXTRA_PROCESSED_METRICS_METADATA_NAME = 'extra_processed_metrics';
 
+    const ROW_IDENTIFIER_METADATA_NAME = 'rowIdentifier';
+
     /**
      * Maximum nesting level.
      */
@@ -230,7 +231,7 @@ class DataTable implements DataTableInterface, \IteratorAggregate, \ArrayAccess
      *
      * @var Row[]
      */
-    protected $rows = array();
+    protected $rows = [];
 
     /**
      * Id assigned to the DataTable, used to lookup the table using the DataTable_Manager
@@ -394,7 +395,7 @@ class DataTable implements DataTableInterface, \IteratorAggregate, \ArrayAccess
     public function setRows($rows)
     {
         unset($this->rows);
-        $this->rows = $rows;
+        $this->rows = (is_array($rows) ? $rows : []);
         $this->indexNotUpToDate = true;
     }
 
@@ -1703,6 +1704,25 @@ class DataTable implements DataTableInterface, \IteratorAggregate, \ArrayAccess
     }
 
     /**
+     * Deletes a metadata property by name.
+     *
+     * @param bool|string $name The metadata name (omit to delete all metadata)
+     * @return bool True if the requested metadata was deleted
+     */
+    public function deleteMetadata($name = false) : bool
+    {
+        if ($name === false) {
+            $this->metadata = [];
+            return true;
+        }
+        if (!isset($this->metadata[$name])) {
+            return false;
+        }
+        unset($this->metadata[$name]);
+        return true;
+    }
+
+    /**
      * Returns all table metadata.
      *
      * @return array
@@ -1773,7 +1793,7 @@ class DataTable implements DataTableInterface, \IteratorAggregate, \ArrayAccess
      */
     public function walkPath($path, $missingRowColumns = false, $maxSubtableRows = 0)
     {
-        $pathLength = count($path);
+        $pathLength = (is_array($path) ? count($path) : 0);
 
         $table = $this;
         $next = false;

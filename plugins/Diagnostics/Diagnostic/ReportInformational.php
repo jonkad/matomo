@@ -1,22 +1,20 @@
 <?php
+
 /**
  * Matomo - free/libre analytics platform
  *
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
+
 namespace Piwik\Plugins\Diagnostics\Diagnostic;
 
 use Piwik\Access;
-use Piwik\Archive\ArchiveInvalidator;
-use Piwik\ArchiveProcessor\Rules;
 use Piwik\Common;
 use Piwik\CronArchive;
 use Piwik\Date;
 use Piwik\Db;
-use Piwik\Development;
 use Piwik\Option;
-use Piwik\Plugin\Manager;
 use Piwik\SettingsPiwik;
 use Piwik\Site;
 use Piwik\Translation\Translator;
@@ -46,8 +44,10 @@ class ReportInformational implements Diagnostic
             $results[] = DiagnosticResult::informationalResult('Had visits in last 1 day', $this->hadVisitsInLastDays(1));
             $results[] = DiagnosticResult::informationalResult('Had visits in last 3 days', $this->hadVisitsInLastDays(3));
             $results[] = DiagnosticResult::informationalResult('Had visits in last 5 days', $this->hadVisitsInLastDays(5));
-            $results[] = DiagnosticResult::informationalResult('Archive Time Last Started', Option::get(CronArchive::OPTION_ARCHIVING_STARTED_TS));
-            $results[] = DiagnosticResult::informationalResult('Archive Time Last Finished', Option::get(CronArchive::OPTION_ARCHIVING_FINISHED_TS));
+            $archiveStart = Option::get(CronArchive::OPTION_ARCHIVING_STARTED_TS);
+            $results[] = DiagnosticResult::informationalResult('Archive Time Last Started', ($archiveStart ? date("Y-m-d H:i:s", $archiveStart) : '-'));
+            $archiveEnd = Option::get(CronArchive::OPTION_ARCHIVING_FINISHED_TS);
+            $results[] = DiagnosticResult::informationalResult('Archive Time Last Finished', ($archiveEnd ? date("Y-m-d H:i:s", $archiveEnd) : '-'));
         }
 
         return $results;
@@ -60,8 +60,8 @@ class ReportInformational implements Diagnostic
 
         try {
             $idSites = $this->getImplodedIdSitesSecure();
-            $row = Db::fetchOne('SELECT idsite from ' . $table . ' where idsite in ('.$idSites.') and visit_last_action_time > ? LIMIT 1', $time );
-        } catch ( \Exception $e ) {
+            $row = Db::fetchOne('SELECT idsite from ' . $table . ' where idsite in (' . $idSites . ') and visit_last_action_time > ? LIMIT 1', $time);
+        } catch (\Exception $e) {
             $row = null;
         }
 

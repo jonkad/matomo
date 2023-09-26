@@ -12,7 +12,7 @@
     />
     <div v-show="loadingFailed">
       <h2 v-if="widgetName">{{ widgetName }}</h2>
-      <div class="notification system notification-error">
+      <div v-if="!loadingFailedRateLimit" class="notification system notification-error">
         {{ translate('General_ErrorRequest', '', '') }}
         <a
           rel="noreferrer noopener"
@@ -23,6 +23,9 @@
           {{ translate('General_ErrorRequestFaqLink') }}
         </a>
       </div>
+      <div v-else class="notification system notification-error">
+        {{ translate('General_ErrorRateLimit') }}
+      </div>
     </div>
     <div class="theWidgetContent" ref="widgetContent" />
   </div>
@@ -32,7 +35,7 @@
 import { IRootScopeService, IScope } from 'angular';
 import { defineComponent } from 'vue';
 import ActivityIndicator from '../ActivityIndicator/ActivityIndicator.vue';
-import translate from '../translate';
+import { translate } from '../translate';
 import Matomo from '../Matomo/Matomo';
 import AjaxHelper from '../AjaxHelper/AjaxHelper';
 import { NotificationsStore } from '../Notification';
@@ -42,6 +45,7 @@ import ComparisonsStoreInstance from '../Comparisons/Comparisons.store.instance'
 interface WidgetLoaderState {
   loading: boolean;
   loadingFailed: boolean;
+  loadingFailedRateLimit: boolean;
   changeCounter: number;
   currentScope: null|IScope;
   lastWidgetAbortController: null|AbortController;
@@ -71,6 +75,7 @@ export default defineComponent({
     return {
       loading: false,
       loadingFailed: false,
+      loadingFailedRateLimit: false,
       changeCounter: 0,
       currentScope: null,
       lastWidgetAbortController: null,
@@ -105,7 +110,7 @@ export default defineComponent({
       this.loadWidgetUrl(this.widgetParams as QueryParameters, this.changeCounter += 1);
     }
   },
-  unmounted() {
+  beforeUnmount() {
     this.cleanupLastWidgetContent();
   },
   methods: {
@@ -117,11 +122,12 @@ export default defineComponent({
     },
     cleanupLastWidgetContent() {
       const widgetContent = this.$refs.widgetContent as HTMLElement;
-      if (widgetContent) {
-        widgetContent.innerHTML = '';
-      }
+      Matomo.helper.destroyVueComponent(widgetContent);
       if (this.currentScope) {
         this.currentScope.$destroy();
+      }
+      if (widgetContent) {
+        widgetContent.innerHTML = '';
       }
     },
     getWidgetUrl(parameters?: QueryParameters): QueryParameters {
@@ -184,12 +190,9 @@ export default defineComponent({
 
       AjaxHelper.fetch(this.getWidgetUrl(parameters), {
         format: 'html',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest',
-        },
         abortController: this.lastWidgetAbortController,
       }).then((response) => {
-        if (thisChangeId !== this.changeCounter || !response || typeof response !== 'string') {
+        if (thisChangeId !== this.changeCounter || typeof response !== 'string') {
           // another widget was requested meanwhile, ignore this response
           return;
         }
@@ -219,7 +222,10 @@ export default defineComponent({
         const scope = $rootScope.$new();
         this.currentScope = scope;
 
+        // compile angularjs first since it will modify all dom nodes, breaking vue bindings
+        // if they are present
         Matomo.helper.compileAngularComponents($content, { scope });
+        Matomo.helper.compileVueEntryComponents($content);
 
         NotificationsStore.parseNotificationDivs();
 
@@ -242,6 +248,10 @@ export default defineComponent({
 
         if (response.xhrStatus === 'abort') {
           return;
+        }
+
+        if (response.status === 429) {
+          this.loadingFailedRateLimit = true;
         }
 
         this.loadingFailed = true;

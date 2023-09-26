@@ -28,10 +28,20 @@ nav {
 
   .icon-more-verti,
   .icon-menu-hamburger {
-    font-size: 2.7rem;
+    // nav{line-height:56px} - {padding:10+10px}
+    font-size: 36px;
     padding: 8px 10px 10px;
     display: inline-block;
     cursor: pointer;
+    color: @theme-color-header-text;
+  }
+
+  @media only screen and (min-width: 601px) {
+    .icon-more-verti,
+    .icon-menu-hamburger {
+      // nav{line-height:64px} - {padding:10+10px}
+      font-size: 48px;
+    }
   }
 
   .side-nav {
@@ -378,6 +388,10 @@ nav {
     .collapsible-header {
       border-bottom: 0;
       cursor: pointer!important;
+      color: @theme-color-header-text;
+      & when (@theme-color-header-text = #ffffff) {
+        color: unset;
+      }
     }
 
     .collapsible-body {
@@ -422,12 +436,16 @@ nav {
       input {
         height: 33px;
         font-size: 11px;
-        padding: 10px 12px 10px 10px;
+        padding: 10px 12px 10px 30px;
         border: 0;
         margin: 0;
         box-sizing: border-box;
         border-radius: 2px !important;
         box-shadow: none!important;
+      }
+
+      input::placeholder {
+        color: #a9a9a9;
       }
     }
 

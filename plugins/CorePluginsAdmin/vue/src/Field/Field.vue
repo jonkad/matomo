@@ -9,8 +9,12 @@
     :form-field="field"
     :model-value="modelValue"
     @update:model-value="onChange($event)"
-    :component="component"
-  />
+    :model-modifiers="modelModifiers"
+  >
+    <template v-slot:inline-help>
+      <slot name="inline-help"></slot>
+    </template>
+  </FormField>
 </template>
 
 <script lang="ts">
@@ -27,6 +31,7 @@ const UI_CONTROLS_TO_TYPE: Record<string, string> = {
 export default defineComponent({
   props: {
     modelValue: null,
+    modelModifiers: Object,
     uicontrol: String,
     name: String,
     defaultValue: null,
@@ -34,7 +39,8 @@ export default defineComponent({
     description: String,
     introduction: String,
     title: String,
-    inlineHelp: String,
+    inlineHelp: [String, Object],
+    inlineHelpBind: Object,
     disabled: Boolean,
     uiControlAttributes: {
       type: Object,
@@ -44,7 +50,7 @@ export default defineComponent({
       type: Object,
       default: () => ({}),
     },
-    autocomplete: Boolean,
+    autocomplete: String,
     condition: Function,
     varType: String,
     autofocus: Boolean,
@@ -57,6 +63,7 @@ export default defineComponent({
     min: Number,
     max: Number,
     component: null,
+    templateFile: String,
   },
   emits: ['update:modelValue'],
   components: {
@@ -85,7 +92,10 @@ export default defineComponent({
         description: this.description,
         introduction: this.introduction,
         inlineHelp: this.inlineHelp,
+        inlineHelpBind: this.inlineHelpBind,
         title: this.title,
+        component: this.component,
+        templateFile: this.templateFile, // BC for angularjs code that uses <Field> indirectly
         uiControlAttributes: {
           ...this.uiControlAttributes,
           disabled: this.disabled,

@@ -14,18 +14,14 @@ use Piwik\ArchiveProcessor\Loader;
 use Piwik\ArchiveProcessor\Parameters;
 use Piwik\ArchiveProcessor\Rules;
 use Piwik\CliMulti\RequestParser;
-use Piwik\Common;
 use Piwik\CronArchive;
 use Piwik\DataAccess\ArchiveSelector;
 use Piwik\DataAccess\Model;
 use Piwik\Date;
-use Piwik\Db;
-use Piwik\Exception\UnexpectedWebsiteFoundException;
 use Piwik\Period;
 use Piwik\Period\Factory as PeriodFactory;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager;
-use Piwik\Plugins\SitesManager\API;
 use Piwik\Segment;
 use Piwik\Site;
 use Piwik\Timer;
@@ -275,7 +271,7 @@ class QueueConsumer
                     $this->logger->debug("Skipping invalidated archive {$invalidatedArchive['idinvalidation']}, invalidation already in progress. Since in progress is older, not removing invalidation.");
                } else if ($alreadyInProgressId > $invalidatedArchive['idinvalidation']) {
                     $this->logger->debug("Skipping invalidated archive {$invalidatedArchive['idinvalidation']}, invalidation already in progress. Since in progress is newer, will remove invalidation.");
-                    $this->model->deleteInvalidations([$invalidatedArchive['idinvalidation']]);
+                    $this->model->deleteInvalidations([$invalidatedArchive]);
                 }
                 continue;
             }

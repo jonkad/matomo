@@ -21,10 +21,13 @@
           :model-value="item"
           :options="field.availableValues"
           @update:modelValue="onEntryChange($event, index)"
+          :model-modifiers="field.modelModifiers"
           :placeholder="' '"
           :uicontrol="field.uiControl"
           :title="field.title"
           :name="`${name}-${index}`"
+          :template-file="field.templateFile"
+          :component="field.component"
         >
         </Field>
       </div>

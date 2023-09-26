@@ -12,7 +12,6 @@ use Piwik\Db;
 use Piwik\Piwik;
 use Piwik\Plugin;
 use Piwik\Plugin\ArchivedMetric;
-use Piwik\Plugin\ComponentFactory;
 use Piwik\Plugin\Segment;
 use Exception;
 use Piwik\CacheId;
@@ -134,7 +133,7 @@ abstract class Dimension
     protected $acceptValues;
 
     /**
-     * Defines to which column in the MySQL database the segment belongs (if one is conifugred). Defaults to
+     * Defines to which column in the MySQL database the segment belongs (if one is configured). Defaults to
      * `$this.dbTableName . '.'. $this.columnName` but you can customize it eg like `HOUR(log_visit.visit_last_action_time)`.
      *
      * @param string $sqlSegment
@@ -418,7 +417,7 @@ abstract class Dimension
             case Dimension::TYPE_BOOL:
                 return !empty($value) ? '1' : '0';
             case Dimension::TYPE_DURATION_MS:
-                return number_format($value / 1000, 2) * 1000; // because we divide we need to group them and cannot do this in formatting step
+                return round($value / 1000, 2) * 1000; // because we divide we need to group them and cannot do this in formatting step
         }
         return $value;
     }
@@ -456,10 +455,7 @@ abstract class Dimension
             case Dimension::TYPE_DURATION_S:
                 return $formatter->getPrettyTimeFromSeconds($value, $displayAsSentence = false);
             case Dimension::TYPE_DURATION_MS:
-                $val = number_format($value / 1000, 2);
-                if ($val > 60) {
-                    $val = round($val);
-                }
+                $val = round(($value / 1000), ($value / 1000) > 60 ? 0 : 2);
                 return $formatter->getPrettyTimeFromSeconds($val, $displayAsSentence = true);
             case Dimension::TYPE_PERCENT:
                 return $formatter->getPrettyPercentFromQuotient($value);

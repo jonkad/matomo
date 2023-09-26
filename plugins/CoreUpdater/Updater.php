@@ -10,17 +10,14 @@ namespace Piwik\Plugins\CoreUpdater;
 
 use Exception;
 use Piwik\ArchiveProcessor\Rules;
-use Piwik\Cache as PiwikCache;
 use Piwik\CliMulti;
 use Piwik\Common;
+use Piwik\Config\GeneralConfig;
 use Piwik\Container\StaticContainer;
-use Piwik\Context;
 use Piwik\Filechecks;
 use Piwik\Filesystem;
-use Piwik\FrontController;
 use Piwik\Http;
 use Piwik\Option;
-use Piwik\Piwik;
 use Piwik\Plugin\Manager as PluginManager;
 use Piwik\Plugin\ReleaseChannels;
 use Piwik\Plugins\CorePluginsAdmin\PluginInstaller;
@@ -76,17 +73,6 @@ class Updater
     {
         $latestVersion = self::getLatestVersion();
         return $latestVersion && version_compare(Version::VERSION, $latestVersion) === -1;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isUpdatingOverHttps()
-    {
-        $openSslEnabled = extension_loaded('openssl');
-        $usingMethodSupportingHttps = (Http::getTransportMethod() !== 'socket');
-
-        return $openSslEnabled && $usingMethodSupportingHttps;
     }
 
     /**
@@ -161,15 +147,6 @@ class Updater
             }
         }
 
-        try {
-            $disabledPluginNames = $this->disableIncompatiblePlugins($newVersion);
-            if (!empty($disabledPluginNames)) {
-                $messages[] = $this->translator->translate('CoreUpdater_DisablingIncompatiblePlugins', implode(', ', $disabledPluginNames));
-            }
-        } catch (Exception $e) {
-            throw new UpdaterException($e, $messages);
-        }
-
         return $messages;
     }
 
@@ -180,41 +157,53 @@ class Updater
         if (!Marketplace::isMarketplaceEnabled()) {
             $messages[] = 'Marketplace is disabled. Not updating any plugins.';
             // prevent error Entry "Piwik\Plugins\Marketplace\Api\Client" cannot be resolved: Entry "Piwik\Plugins\Marketplace\Api\Service" cannot be resolved
-            return $messages;
-        }
+        } else {
+            if (!isset($newVersion)) {
+                $newVersion = Version::VERSION;
+            }
 
-        if (!isset($newVersion)) {
-            $newVersion = Version::VERSION;
+            // we also need to make sure to create a new instance here as otherwise we would change the "global"
+            // environment, but we only want to change piwik version temporarily for this task here
+            $environment = StaticContainer::getContainer()->make('Piwik\Plugins\Marketplace\Environment');
+            $environment->setPiwikVersion($newVersion);
+            /** @var \Piwik\Plugins\Marketplace\Api\Client $marketplaceClient */
+            $marketplaceClient = StaticContainer::getContainer()->make('Piwik\Plugins\Marketplace\Api\Client', [
+                'environment' => $environment
+            ]);
+
+            try {
+                $messages[]    = $this->translator->translate('CoreUpdater_CheckingForPluginUpdates');
+                $pluginManager = PluginManager::getInstance();
+                $pluginManager->loadAllPluginsAndGetTheirInfo();
+                $loadedPlugins = $pluginManager->getLoadedPlugins();
+
+                $marketplaceClient->clearAllCacheEntries();
+                $pluginsWithUpdate = $marketplaceClient->checkUpdates($loadedPlugins);
+
+                foreach ($pluginsWithUpdate as $pluginWithUpdate) {
+                    $pluginName      = $pluginWithUpdate['name'];
+                    $messages[]      = $this->translator->translate(
+                        'CoreUpdater_UpdatingPluginXToVersionY',
+                        [$pluginName, $pluginWithUpdate['version']]
+                    );
+                    $pluginInstaller = new PluginInstaller($marketplaceClient);
+                    $pluginInstaller->installOrUpdatePluginFromMarketplace($pluginName);
+                }
+            } catch (MarketplaceApi\Exception $e) {
+                // there is a problem with the connection to the server, ignore for now
+            } catch (Exception $e) {
+                throw new UpdaterException($e, $messages);
+            }
         }
-        
-        // we also need to make sure to create a new instance here as otherwise we would change the "global"
-        // environment, but we only want to change piwik version temporarily for this task here
-        $environment = StaticContainer::getContainer()->make('Piwik\Plugins\Marketplace\Environment');
-        $environment->setPiwikVersion($newVersion);
-        /** @var \Piwik\Plugins\Marketplace\Api\Client $marketplaceClient */
-        $marketplaceClient = StaticContainer::getContainer()->make('Piwik\Plugins\Marketplace\Api\Client', array(
-            'environment' => $environment
-        ));
 
         try {
-            $messages[] = $this->translator->translate('CoreUpdater_CheckingForPluginUpdates');
-            $pluginManager = PluginManager::getInstance();
-            $pluginManager->loadAllPluginsAndGetTheirInfo();
-            $loadedPlugins = $pluginManager->getLoadedPlugins();
-
-            $marketplaceClient->clearAllCacheEntries();
-            $pluginsWithUpdate = $marketplaceClient->checkUpdates($loadedPlugins);
-
-            foreach ($pluginsWithUpdate as $pluginWithUpdate) {
-                $pluginName = $pluginWithUpdate['name'];
-                $messages[] = $this->translator->translate('CoreUpdater_UpdatingPluginXToVersionY',
-                    array($pluginName, $pluginWithUpdate['version']));
-                $pluginInstaller = new PluginInstaller($marketplaceClient);
-                $pluginInstaller->installOrUpdatePluginFromMarketplace($pluginName);
+            // incompatible plugins may have already been disabled in oneClickUpdatePartTwo
+            // if this might have failed we try it here again.
+            $disabledPluginNames = $this->disableIncompatiblePlugins($newVersion);
+            if (!empty($disabledPluginNames)) {
+                $messages[] = $this->translator->translate('CoreUpdater_DisablingIncompatiblePlugins', implode(', ', $disabledPluginNames));
             }
-        } catch (MarketplaceApi\Exception $e) {
-            // there is a problem with the connection to the server, ignore for now
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             throw new UpdaterException($e, $messages);
         }
 
@@ -300,7 +289,7 @@ class Updater
         foreach ($plugins as $plugin) {
             $plugin->reloadPluginInformation();
         }
-        
+
         $incompatiblePlugins = $this->getIncompatiblePlugins($version);
         $disabledPluginNames = array();
 
@@ -321,6 +310,9 @@ class Updater
         }
 
         $model = new Model();
+
+        // Check if the target directories are writable
+        $this->checkFolderPermissions($extractedArchiveDirectory, PIWIK_INCLUDE_PATH);
 
         /*
          * Copy all files to PIWIK_INCLUDE_PATH.
@@ -365,7 +357,7 @@ class Updater
         $channel = $this->releaseChannels->getActiveReleaseChannel();
         $url = $channel->getDownloadUrlWithoutScheme($version);
 
-        if ($this->isUpdatingOverHttps() && $https) {
+        if (Http::isUpdatingOverHttps() && $https && GeneralConfig::getConfigValue('force_matomo_http_request') == 0) {
             $url = 'https' . $url;
         } else {
             $url = 'http' . $url;
@@ -377,5 +369,35 @@ class Updater
     private function getIncompatiblePlugins($piwikVersion)
     {
         return PluginManager::getInstance()->getIncompatiblePlugins($piwikVersion);
+    }
+
+
+    /**
+     * check if the target file directory is writeable
+     * @param string $source
+     * @param string $target
+     * @throws Exception
+     */
+    private function checkFolderPermissions($source, $target)
+    {
+        $wrongPermissionDir = [];
+        if (is_dir($source)) {
+            $d = dir($source);
+            while (false !== ($entry = $d->read())) {
+                if ($entry == '.' || $entry == '..') {
+                    continue;
+                }
+                $sourcePath = $source . '/' . $entry;
+                if (is_dir($sourcePath) && !is_writable($target . '/' . $entry)) {
+                    //add the wrong permission to the array
+                    $wrongPermissionDir[] = $target . '/' . $entry;
+                }
+            }
+        }
+
+        if (!empty($wrongPermissionDir)) {
+            throw new Exception($this->translator->translate('CoreUpdater_ExceptionDirWrongPermission',
+              implode(', ', $wrongPermissionDir)));
+        }
     }
 }

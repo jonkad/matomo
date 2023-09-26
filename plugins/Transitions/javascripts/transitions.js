@@ -249,7 +249,7 @@ Piwik_Transitions.prototype.showPopover = function (showEmbeddedInReport) {
         if (!showEmbeddedInReport) {
             Piwik_Popover.setContent(Piwik_Transitions.popoverHtml);
         } else {
-            $('#transitions_inline_loading').hide();
+          $('#transitions_inline_loading').hide();
             $('#transitions_report .popoverContainer').html(Piwik_Transitions.popoverHtml);
             $('#transitions_report .popoverContainer').show();
         }
@@ -459,7 +459,7 @@ Piwik_Transitions.prototype.renderCenterBox = function () {
             el.addClass('Transitions_Value0');
         } else {
             self.addTooltipShowingPercentageOfAllPageviews(el, modelProperty);
-            var groupName = cssClass.charAt(0).toLowerCase() + cssClass.substr(1);
+            var groupName = cssClass.charAt(0).toLowerCase() + cssClass.slice(1);
             el.hover(function () {
                 self.highlightGroup(groupName, highlightCurveOnSide);
             }, function () {
@@ -792,7 +792,7 @@ Piwik_Transitions.prototype.highlightGroup = function (groupName, side) {
     this.highlightedGroup = groupName;
     this.highlightedGroupSide = side;
 
-    var cssClass = 'Transitions_' + groupName.charAt(0).toUpperCase() + groupName.substr(1);
+    var cssClass = 'Transitions_' + groupName.charAt(0).toUpperCase() + groupName.slice(1);
     this.highlightedGroupCenterEl = this.canvas.container.find('.' + cssClass);
     this.highlightedGroupCenterEl.addClass('Transitions_Highlighted');
 
@@ -1620,7 +1620,7 @@ Piwik_Transitions_Ajax.prototype.callApi = function (method, params, callback) {
                         Piwik_Popover.showError(errorTitle, errorMessage, errorBack);
                     }
 
-                    $('#transitions_inline_loading').hide();
+                  $('#transitions_inline_loading').hide();
                 };
 
                 if (typeof Piwik_Transitions_Translations == 'undefined') {

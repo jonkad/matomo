@@ -25,6 +25,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import { debounce } from 'CoreHome';
+import AbortableModifiers from './AbortableModifiers';
 
 export default defineComponent({
   props: {
@@ -32,6 +33,7 @@ export default defineComponent({
     name: String,
     uiControlAttributes: Object,
     modelValue: [String, Number],
+    modelModifiers: Object,
     uiControl: String,
   },
   inheritAttrs: false,
@@ -63,7 +65,26 @@ export default defineComponent({
   },
   methods: {
     onKeydown(event: Event) {
-      this.$emit('update:modelValue', (event.target as HTMLInputElement).value);
+      const newValue = (event.target as HTMLInputElement).value;
+      if (this.modelValue !== newValue) {
+        if (!(this.modelModifiers as AbortableModifiers)?.abortable) {
+          this.$emit('update:modelValue', newValue);
+          return;
+        }
+
+        const emitEventData = {
+          value: newValue,
+          abort: () => {
+            // change to previous value if the parent component did not update the model value
+            // (done manually because Vue will not notice if a value does NOT change)
+            if ((event.target as HTMLInputElement).value !== this.modelValueText) {
+              (event.target as HTMLInputElement).value = this.modelValueText;
+            }
+          },
+        };
+
+        this.$emit('update:modelValue', emitEventData);
+      }
     },
   },
 });

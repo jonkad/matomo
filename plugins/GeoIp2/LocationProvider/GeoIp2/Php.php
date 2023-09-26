@@ -11,14 +11,13 @@ namespace Piwik\Plugins\GeoIp2\LocationProvider\GeoIp2;
 use GeoIp2\Database\Reader;
 use GeoIp2\Exception\AddressNotFoundException;
 use MaxMind\Db\Reader\InvalidDatabaseException;
+use Piwik\Container\StaticContainer;
 use Piwik\Date;
-use Piwik\Common;
 use Piwik\Log;
 use Piwik\Piwik;
 use Piwik\Plugin\Manager;
 use Piwik\Plugins\GeoIp2\GeoIP2AutoUpdater;
 use Piwik\Plugins\GeoIp2\LocationProvider\GeoIp2;
-use Piwik\Plugins\Marketplace\Api\Exception;
 use Piwik\Plugins\UserCountry\LocationProvider;
 use Piwik\SettingsPiwik;
 use Piwik\View;
@@ -81,6 +80,11 @@ class Php extends GeoIp2
     public function __destroy()
     {
         $this->clearCachedInstances();
+    }
+
+    private function isIspDbEnabled()
+    {
+        return StaticContainer::get('geopip2.ispEnabled');
     }
 
     /**
@@ -148,7 +152,11 @@ class Php extends GeoIp2
         }
 
         // NOTE: ISP & ORG require commercial dbs to test.
-        $ispGeoIp = $this->getGeoIpInstance($key = 'isp');
+        if ($this->isIspDbEnabled()) {
+            $ispGeoIp = $this->getGeoIpInstance($key = 'isp');
+        } else {
+            $ispGeoIp = false;
+        }
         if ($ispGeoIp) {
             try {
                 switch ($ispGeoIp->metadata()->databaseType) {
@@ -253,7 +261,16 @@ class Php extends GeoIp2
         if (is_array($lookupResult->subdivisions) && count($lookupResult->subdivisions) > 0) {
             $subdivisions = $lookupResult->subdivisions;
             $subdivision = $this->determinSubdivision($subdivisions, $result[self::COUNTRY_CODE_KEY]);
-            $result[self::REGION_CODE_KEY] = $subdivision->isoCode ? strtoupper($subdivision->isoCode) : $this->determineRegionIsoCodeByNameAndCountryCode($subdivision->name, $result[self::COUNTRY_CODE_KEY]);
+            $subdivisionIsoCode = $subdivision->isoCode ? strtoupper($subdivision->isoCode) : '';
+
+            // In some cases the region code might be returned including the country code
+            // e.g. AE-DU instead of only DU. In that case we remove the prefix
+            // see https://github.com/matomo-org/matomo/issues/19323
+            if (0 === strpos($subdivisionIsoCode, $result[self::COUNTRY_CODE_KEY] . '-')) {
+                $subdivisionIsoCode = substr($subdivisionIsoCode, strlen($result[self::COUNTRY_CODE_KEY]) + 1);
+            }
+
+            $result[self::REGION_CODE_KEY] = $subdivisionIsoCode ? : $this->determineRegionIsoCodeByNameAndCountryCode($subdivision->name, $result[self::COUNTRY_CODE_KEY]);
             $result[self::REGION_NAME_KEY] = $subdivision->name;
         }
     }
@@ -300,7 +317,7 @@ class Php extends GeoIp2
     public function isAvailable()
     {
         $pathLoc = self::getPathToGeoIpDatabase($this->customDbNames['loc']);
-        $pathIsp = self::getPathToGeoIpDatabase($this->customDbNames['isp']);
+        $pathIsp = $this->isIspDbEnabled() && self::getPathToGeoIpDatabase($this->customDbNames['isp']);
         return $pathLoc !== false || $pathIsp !== false;
     }
 
@@ -361,7 +378,7 @@ class Php extends GeoIp2
         }
 
         // check if isp info is available
-        if ($this->getGeoIpInstance($key = 'isp')) {
+        if ($this->isIspDbEnabled() && $this->getGeoIpInstance($key = 'isp')) {
             $result[self::ISP_KEY] = true;
             $result[self::ORG_KEY] = true;
         }
@@ -389,7 +406,7 @@ class Php extends GeoIp2
                 array('<strong>', '</strong>'));
         }
 
-        $installDocs = '<a rel="noreferrer"  target="_blank" href="https://matomo.org/faq/how-to/#faq_163">'
+        $installDocs = '<a rel="noreferrer"  target="_blank" href="https://matomo.org/faq/how-to/faq_163">'
             . Piwik::translate('UserCountry_HowToInstallGeoIPDatabases')
             . '</a>';
 

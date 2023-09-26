@@ -9,6 +9,7 @@
 namespace Piwik\ArchiveProcessor;
 
 use Piwik\Archive\ArchiveInvalidator;
+use Piwik\ArchiveProcessor;
 use Piwik\Cache;
 use Piwik\Common;
 use Piwik\Config;
@@ -63,6 +64,10 @@ class Loader
      */
     private $dataAccessModel;
 
+    /**
+     * @var bool
+     */
+    private $invalidateBeforeArchiving;
 
     public function __construct(Parameters $params, $invalidateBeforeArchiving = false)
     {
@@ -132,7 +137,7 @@ class Loader
         list($idArchives, $visits, $visitsConverted) = $data;
 
         // only lock meet those conditions
-        if ($this->params->isRootArchiveRequest() && !SettingsServer::isArchivePhpTriggered()) {
+        if (ArchiveProcessor::$isRootArchivingRequest && !SettingsServer::isArchivePhpTriggered()) {
             $lockId = $this->makeArchivingLockId();
 
             //ini lock

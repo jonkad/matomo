@@ -25,12 +25,13 @@ import './ExpandOnHover/ExpandOnHover.adapter';
 import './ShowSensitiveData/ShowSensitiveData.adapter';
 import './DropdownButton/DropdownButton.adapter';
 import './SelectOnFocus/SelectOnFocus.adapter';
+import './CopyToClipboard/CopyToClipboard.adapter';
 import './SideNav/SideNav.adapter';
 import './MatomoDialog/MatomoDialog.adapter';
 import './EnrichedHeadline/EnrichedHeadline.adapter';
 import './ContentBlock/ContentBlock.adapter';
 import './Comparisons/Comparisons.adapter';
-import './MenuDropdown/MenuDropdown.adapter';
+import './MenuItemsDropdown/MenuItemsDropdown.adapter';
 import './DatePicker/DatePicker.adapter';
 import './DateRangePicker/DateRangePicker.adapter';
 import './PeriodDatePicker/PeriodDatePicker.adapter';
@@ -55,11 +56,13 @@ import './Progressbar/Progressbar.adapter';
 import './ContentIntro/ContentIntro.adapter';
 import './ContentTable/ContentTable.adapter';
 import './AjaxForm/AjaxForm.adapter';
+import './ShowHelpLink/ShowHelpLink.adapter';
 
 export { default as createVueApp } from './createVueApp';
 export { default as useExternalPluginComponent } from './useExternalPluginComponent';
 export { default as DirectiveUtilities } from './directiveUtilities';
 export { default as debounce } from './debounce';
+export { default as getFormattedEvolution } from './getFormattedEvolution';
 export {
   default as createAngularJsAdapter,
   transformAngularJsBoolAttr,
@@ -70,27 +73,29 @@ export {
 } from './createAngularJsAdapter';
 export { default as activityIndicatorAdapter } from './ActivityIndicator/ActivityIndicator.adapter';
 export { default as ActivityIndicator } from './ActivityIndicator/ActivityIndicator.vue';
-export { default as translate } from './translate';
+export * from './translate';
 export { default as Alert } from './Alert/Alert.vue';
-export { default as AjaxHelper } from './AjaxHelper/AjaxHelper';
+export { default as AjaxHelper, AjaxOptions } from './AjaxHelper/AjaxHelper';
 export { setCookie, getCookie, deleteCookie } from './CookieHelper/CookieHelper';
 export { default as MatomoUrl } from './MatomoUrl/MatomoUrl';
 export { default as Matomo } from './Matomo/Matomo';
 export * from './Periods';
-export { default as Dropdown } from './DropdownMenu/DropdownMenu';
+export { default as DropdownMenu } from './DropdownMenu/DropdownMenu';
 export { default as FocusAnywhereButHere } from './FocusAnywhereButHere/FocusAnywhereButHere';
 export { default as FocusIf } from './FocusIf/FocusIf';
+export { default as Tooltips } from './Tooltips/Tooltips';
 export { default as MatomoDialog } from './MatomoDialog/MatomoDialog.vue';
 export { default as ExpandOnClick } from './ExpandOnClick/ExpandOnClick';
 export { default as ExpandOnHover } from './ExpandOnHover/ExpandOnHover';
 export { default as ShowSensitiveData } from './ShowSensitiveData/ShowSensitiveData';
 export { default as DropdownButton } from './DropdownButton/DropdownButton';
 export { default as SelectOnFocus } from './SelectOnFocus/SelectOnFocus';
+export { default as CopyToClipboard } from './CopyToClipboard/CopyToClipboard';
 export { default as SideNav } from './SideNav/SideNav';
 export { default as EnrichedHeadline } from './EnrichedHeadline/EnrichedHeadline.vue';
 export { default as ContentBlock } from './ContentBlock/ContentBlock.vue';
 export { default as Comparisons } from './Comparisons/Comparisons.vue';
-export { default as MenuDropdown } from './MenuDropdown/MenuDropdown.vue';
+export { default as MenuItemsDropdown } from './MenuItemsDropdown/MenuItemsDropdown.vue';
 export { default as DatePicker } from './DatePicker/DatePicker.vue';
 export { default as DateRangePicker } from './DateRangePicker/DateRangePicker.vue';
 export { default as PeriodDatePicker } from './PeriodDatePicker/PeriodDatePicker.vue';
@@ -104,6 +109,7 @@ export { default as FieldArray } from './FieldArray/FieldArray.vue';
 export { default as MultiPairField } from './MultiPairField/MultiPairField.vue';
 export { default as PeriodSelector } from './PeriodSelector/PeriodSelector.vue';
 export { default as ReportingMenu } from './ReportingMenu/ReportingMenu.vue';
+export { default as ReportingMenuStore } from './ReportingMenu/ReportingMenu.store';
 export { default as ReportingPagesStore } from './ReportingPages/ReportingPages.store';
 export { default as ReportMetadataStore } from './ReportMetadata/ReportMetadata.store';
 export { default as WidgetsStore } from './Widget/Widgets.store';
@@ -111,6 +117,11 @@ export { default as WidgetLoader } from './WidgetLoader/WidgetLoader.vue';
 export { default as WidgetContainer } from './WidgetContainer/WidgetContainer.vue';
 export { default as WidgetByDimensionContainer } from './WidgetByDimensionContainer/WidgetByDimensionContainer.vue';
 export { default as Widget } from './Widget/Widget.vue';
+export {
+  Widget as WidgetType,
+  WidgetContainer as WidgetContainerType,
+  GroupedWidgets as GroupedWidgetsType,
+} from './Widget/types';
 export { default as ReportingPage } from './ReportingPage/ReportingPage.vue';
 export { default as ReportExport } from './ReportExport/ReportExport';
 export { default as Sparkline } from './Sparkline/Sparkline.vue';

@@ -14,6 +14,7 @@ use Piwik\API\Proxy;
 use Piwik\API\Request;
 use Piwik\Common;
 use Piwik\Config as PiwikConfig;
+use Piwik\Config\GeneralConfig;
 use Piwik\Container\StaticContainer;
 use Piwik\Date;
 use Piwik\Exception\NoPrivilegesException;
@@ -424,8 +425,8 @@ abstract class Controller
     {
         // load translations from meta data
         $idSite = Common::getRequestVar('idSite');
-        $period = Common::getRequestVar('period');
-        $date = Common::getRequestVar('date');
+        $period = Piwik::getPeriod();
+        $date = Piwik::getDate();
         $meta = \Piwik\Plugins\API\API::getInstance()->getReportMetadata($idSite, $period, $date);
 
         $columns = array_merge($columnsToDisplay ? $columnsToDisplay : array(), $selectableColumns);
@@ -476,25 +477,14 @@ abstract class Controller
      */
     protected function getGraphParamsModified($paramsToSet = array())
     {
-        if (!isset($paramsToSet['period'])) {
-            $period = Common::getRequestVar('period');
-        } else {
-            $period = $paramsToSet['period'];
-        }
+        $period = $paramsToSet['period'] ?? Piwik::getPeriod();
+
         if ($period === 'range') {
             return $paramsToSet;
         }
-        if (!isset($paramsToSet['range'])) {
-            $range = 'last30';
-        } else {
-            $range = $paramsToSet['range'];
-        }
 
-        if (!isset($paramsToSet['date'])) {
-            $endDate = $this->strDate;
-        } else {
-            $endDate = $paramsToSet['date'];
-        }
+        $range = isset($paramsToSet['range']) ? $paramsToSet['range'] : 'last30';
+        $endDate = isset($paramsToSet['date']) ? $paramsToSet['date'] : $this->strDate;
 
         if (is_null($this->site)) {
             throw new NoAccessException("Website not initialized, check that you are logged in and/or using the correct token_auth.");
@@ -640,10 +630,10 @@ abstract class Controller
         $maxDate = Date::factory('now', $siteTimezone);
         $this->setMaxDateView($maxDate, $view);
 
-        $rawDate = Common::getRequestVar('date');
+        $rawDate = Piwik::getDate(GeneralConfig::getConfigValue('default_day'));
         Period::checkDateFormat($rawDate);
 
-        $periodStr = Common::getRequestVar('period');
+        $periodStr = Piwik::getPeriod(GeneralConfig::getConfigValue('default_period'));
 
         if ($periodStr !== 'range') {
             $date      = Date::factory($this->strDate);
@@ -842,7 +832,7 @@ abstract class Controller
 
             $emailSubject = rawurlencode(Piwik::translate('CoreHome_InjectedHostEmailSubject', $invalidHost));
             $emailBody = rawurlencode(Piwik::translate('CoreHome_InjectedHostEmailBody'));
-            $superUserEmail = implode(',', Piwik::getContactEmailAddresses());
+            $superUserEmail = rawurlencode(implode(',', Piwik::getContactEmailAddresses()));
 
             $mailToUrl = "mailto:$superUserEmail?subject=$emailSubject&body=$emailBody";
             $mailLinkStart = "<a href=\"$mailToUrl\">";
@@ -872,7 +862,7 @@ abstract class Controller
                                                                                     $invalidHost,
                                                                                     '</a>',
                                                                                     "<br/><a href=\"$validUrl\">",
-                                                                                    $validHost,
+                                                                                    Common::sanitizeInputValue($validHost),
                                                                                     '</a>'
                                                                                ));
             } elseif (Piwik::isUserIsAnonymous()) {
@@ -923,7 +913,7 @@ abstract class Controller
 
         $periodValidator = new PeriodValidator();
 
-        $currentPeriod = Common::getRequestVar('period');
+        $currentPeriod = Piwik::getPeriod(GeneralConfig::getConfigValue('default_period'));
         $availablePeriods = $periodValidator->getPeriodsAllowedForUI();
 
         if (! $periodValidator->isPeriodAllowedForUI($currentPeriod)) {
@@ -976,7 +966,7 @@ abstract class Controller
 
         if (!Piwik::isUserIsAnonymous()) {
             $currentLogin = Piwik::getCurrentUserLogin();
-            $emails = implode(',', Piwik::getContactEmailAddresses());
+            $emails = rawurlencode(implode(',', Piwik::getContactEmailAddresses()));
             $errorMessage  = sprintf(Piwik::translate('CoreHome_NoPrivilegesAskPiwikAdmin'), $currentLogin, "<br/><a href='mailto:" . $emails . "?subject=Access to Matomo for user $currentLogin'>", "</a>");
             $errorMessage .= "<br /><br />&nbsp;&nbsp;&nbsp;<b><a href='index.php?module=" . Piwik::getLoginPluginName() . "&amp;action=logout'>&rsaquo; " . Piwik::translate('General_Logout') . "</a></b><br />";
 
@@ -1015,7 +1005,7 @@ abstract class Controller
         }
 
         if ($tokenRequest !== $tokenUser) {
-            throw new NoAccessException(Piwik::translate('General_ExceptionInvalidToken'));
+            throw new NoAccessException(Piwik::translate('General_ExceptionSecurityCheckFailed'));
         }
     }
 

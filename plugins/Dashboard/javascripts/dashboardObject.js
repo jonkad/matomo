@@ -4,6 +4,7 @@
  * @link https://matomo.org
  * @license http://www.gnu.org/licenses/gpl-3.0.html GPL v3 or later
  */
+
 (function ($) {
 
     var layoutColumnSelector = '#dashboardWidgetsArea > .col';
@@ -61,6 +62,8 @@
                 generateLayout(options.layout);
             }
 
+            window.CoreHome.Matomo.postEvent('Dashboard.Dashboard.mounted', { element: this });
+
             return this;
         },
 
@@ -70,6 +73,10 @@
          * @return void
          */
         destroy: function () {
+            if (dashboardElement && dashboardElement.length) {
+              window.CoreHome.Matomo.postEvent('Dashboard.Dashboard.unmounted', {element: dashboardElement[0]});
+            }
+
             $(dashboardElement).remove();
             dashboardElement = null;
             destroyWidgets();
@@ -94,9 +101,7 @@
                     $location.search('subcategory', '' + dashboardIdToLoad);
                 });
             } else {
-                var element = $('[piwik-dashboard]');
-                var scope = angular.element(element).scope();
-                scope.fetchDashboard(dashboardIdToLoad);
+                piwik.postEvent('Dashboard.loadDashboard', dashboardIdToLoad);
             }
 
             return this;
@@ -473,7 +478,7 @@
             return;
         }
 
-        var $widgetContent = $('<div class="sortable" widgetId="' + uniqueId + '"></div>');
+        var $widgetContent = $('<div class="sortable"></div>').attr('widgetId', uniqueId);
 
         if (addWidgetOnTop) {
             $('> .col:nth-child(' + columnNumber + ')', dashboardElement).prepend($widgetContent);

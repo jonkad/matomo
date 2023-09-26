@@ -158,11 +158,6 @@ class LogAggregator
     /**
      * @var bool
      */
-    private $isRootArchiveRequest;
-
-    /**
-     * @var bool
-     */
     private $allowUsageSegmentCache = false;
 
     /**
@@ -181,7 +176,6 @@ class LogAggregator
         $this->dateEnd = $params->getDateTimeEnd();
         $this->segment = $params->getSegment();
         $this->sites = $params->getIdSites();
-        $this->isRootArchiveRequest = $params->isRootArchiveRequest();
         $this->logger = $logger ?: StaticContainer::get('Psr\Log\LoggerInterface');
         $this->params = $params;
     }
@@ -201,9 +195,9 @@ class LogAggregator
         return $this->segment;
     }
 
-    public function setQueryOriginHint($nameOfOrigiin)
+    public function setQueryOriginHint($nameOfOrigin)
     {
-        $this->queryOriginHint = $nameOfOrigiin;
+        $this->queryOriginHint = $nameOfOrigin;
     }
 
     public function getSegmentTmpTableName()
@@ -282,8 +276,7 @@ class LogAggregator
         if (defined('PIWIK_TEST_MODE') && PIWIK_TEST_MODE) {
             $engine = 'ENGINE=MEMORY';
         }
-        $tempTableIdVisitColumn = 'idvisit  BIGINT(10) UNSIGNED NOT NULL';
-        $createTableSql = 'CREATE TEMPORARY TABLE ' . $table . ' (' . $tempTableIdVisitColumn . ') ' . $engine;
+        $createTableSql = 'CREATE TEMPORARY TABLE ' . $table . ' (idvisit  BIGINT(10) UNSIGNED NOT NULL, PRIMARY KEY (`idvisit`)) ' . $engine;
         // we do not insert the data right away using create temporary table ... select ...
         // to avoid metadata lock see eg https://www.percona.com/blog/2018/01/10/why-avoid-create-table-as-select-statement/
 
@@ -293,23 +286,7 @@ class LogAggregator
         } catch (\Exception $e) {
             if ($readerDb->isErrNo($e, \Piwik\Updater\Migration\Db::ERROR_CODE_TABLE_EXISTS)) {
                 return;
-            } elseif ($readerDb->isErrNo($e, \Piwik\Updater\Migration\Db::ERROR_CODE_REQUIRES_PRIMARY_KEY)
-                || $readerDb->isErrNo($e, \Piwik\Updater\Migration\Db::ERROR_CODE_UNABLE_CREATE_TABLE_WITHOUT_PRIMARY_KEY
-                    || stripos($e->getMessage(), 'requires a primary key') !== false
-                    || stripos($e->getMessage(), 'table without a primary key') !== false)
-            ) {
-                $createTableSql = str_replace($tempTableIdVisitColumn, $tempTableIdVisitColumn . ', PRIMARY KEY (`idvisit`)', $createTableSql);
-
-                try {
-                    $readerDb->query($createTableSql);
-                } catch (\Exception $e) {
-                    if ($readerDb->isErrNo($e, \Piwik\Updater\Migration\Db::ERROR_CODE_TABLE_EXISTS)) {
-                        return;
-                    } else {
-                        throw $e;
-                    }
-                }
-            } else {
+            }  else {
                 throw $e;
             }
         }
@@ -338,43 +315,47 @@ class LogAggregator
             return;
         }
 
-        $insertIntoStatement = 'INSERT INTO ' . $table . ' (idvisit) ' . $segmentSelectSql;
+        $insertIntoStatement = 'INSERT IGNORE INTO ' . $table . ' (idvisit) ' . $segmentSelectSql;
         $readerDb->query($insertIntoStatement, $segmentSelectBind);
 
         $transactionLevel->restorePreviousStatus();
     }
 
+    /**
+     * Generate a SQL query from the supplied parameters
+     *
+     * @param             $select
+     * @param             $from
+     * @param             $where
+     * @param             $groupBy
+     * @param             $orderBy
+     * @param int         $limit
+     * @param int         $offset
+     *
+     * @return array|mixed|string
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
+     */
     public function generateQuery($select, $from, $where, $groupBy, $orderBy, $limit = 0, $offset = 0)
     {
         $segment = $this->segment;
         $bind = $this->getGeneralQueryBindParams();
 
         if (!$this->segment->isEmpty() && $this->isSegmentCacheEnabled()) {
-            // here we create the TMP table and apply the segment including the datetime and the requested idsite
-            // at the end we generated query will no longer need to apply the datetime/idsite and segment
+
             $segment = new Segment('', $this->sites, $this->params->getPeriod()->getDateTimeStart(), $this->params->getPeriod()->getDateTimeEnd());
 
-            $segmentTable = $this->getSegmentTmpTableName();
+            $logTablesProvider = $this->getLogTableProvider();
+            $segmentTable = $this->createSegmentTable();
+            $logTablesProvider->setTempTable(new LogTableTemporary($segmentTable));
 
-            $segmentWhere = $this->getWhereStatement('log_visit', 'visit_last_action_time');
-            $segmentBind = $this->getGeneralQueryBindParams();
-
-            $logQueryBuilder = StaticContainer::get('Piwik\DataAccess\LogQueryBuilder');
-            $forceGroupByBackup = $logQueryBuilder->getForcedInnerGroupBySubselect();
-            $logQueryBuilder->forceInnerGroupBySubselect(LogQueryBuilder::FORCE_INNER_GROUP_BY_NO_SUBSELECT);
-            $segmentSql = $this->segment->getSelectQuery('distinct log_visit.idvisit as idvisit', 'log_visit', $segmentWhere, $segmentBind, 'log_visit.idvisit ASC');
-            $logQueryBuilder->forceInnerGroupBySubselect($forceGroupByBackup);
-
-            $this->createTemporaryTable($segmentTable, $segmentSql['sql'], $segmentSql['bind']);
-
+            // Apply the segment including the datetime and the requested idsite
+            // At the end the generated query will no longer need to apply the datetime/idsite and segment
             if (!is_array($from)) {
                 $from = array($segmentTable, $from);
             } else {
                 array_unshift($from, $segmentTable);
             }
-
-            $logTablesProvider = $this->getLogTableProvider();
-            $logTablesProvider->setTempTable(new LogTableTemporary($segmentTable));
 
             foreach ($logTablesProvider->getAllLogTables() as $logTable) {
                 if ($logTable->getDateTimeColumn()) {
@@ -390,36 +371,44 @@ class LogAggregator
                         break;
                     }
                 }
-
             }
 
         }
 
         $query = $segment->getSelectQuery($select, $from, $where, $bind, $orderBy, $groupBy, $limit, $offset);
 
-        $select = 'SELECT';
-        if ($this->queryOriginHint && is_array($query) && 0 === strpos(trim($query['sql']), $select)) {
-            $query['sql'] = trim($query['sql']);
-            $query['sql'] = 'SELECT /* ' . $this->queryOriginHint . ' */' . substr($query['sql'], strlen($select));
-        }
-
-        if (0 === strpos(trim($query['sql']), $select)) {
-            $query['sql'] = trim($query['sql']);
-            $query['sql'] = 'SELECT /* ' . $this->dateStart->toString() . ',' . $this->dateEnd->toString() . ' */' . substr($query['sql'], strlen($select));
-        }
-
-        if ($this->sites && 0 === strpos(trim($query['sql']), $select)) {
-            $query['sql'] = trim($query['sql']);
-            $query['sql'] = 'SELECT /* ' . 'sites ' . implode(',', array_map('intval', $this->sites)) . ' */' . substr($query['sql'], strlen($select));
-        }
-
-        if (!$this->getSegment()->isEmpty() && is_array($query) && 0 === strpos(trim($query['sql']), $select)) {
-            $query['sql'] = trim($query['sql']);
-            $query['sql'] = 'SELECT /* ' . 'segmenthash ' . $this->getSegment()->getHash(). ' */' . substr($query['sql'], strlen($select));
+        if (is_array($query) && array_key_exists('sql', $query)) {
+            $query['sql'] = DbHelper::addOriginHintToQuery($query['sql'], $this->queryOriginHint, $this->dateStart, $this->dateEnd, $this->sites, $this->segment);
         }
 
         return $query;
     }
+
+    /**
+     * Create the segment temporary table
+     *
+     * @return string   Name of the created temporary table, including any table prefix
+     *
+     * @throws \DI\DependencyException
+     * @throws \DI\NotFoundException
+     */
+    private function createSegmentTable(): string
+    {
+        $segmentTable = $this->getSegmentTmpTableName();
+        $segmentWhere = $this->getWhereStatement('log_visit', 'visit_last_action_time');
+        $segmentBind = $this->getGeneralQueryBindParams();
+
+        $logQueryBuilder = StaticContainer::get('Piwik\DataAccess\LogQueryBuilder');
+        $forceGroupByBackup = $logQueryBuilder->getForcedInnerGroupBySubselect();
+        $logQueryBuilder->forceInnerGroupBySubselect(LogQueryBuilder::FORCE_INNER_GROUP_BY_NO_SUBSELECT);
+        $segmentSql = $this->segment->getSelectQuery('distinct log_visit.idvisit as idvisit', 'log_visit', $segmentWhere, $segmentBind, 'log_visit.idvisit ASC');
+        $logQueryBuilder->forceInnerGroupBySubselect($forceGroupByBackup);
+
+        $this->createTemporaryTable($segmentTable, $segmentSql['sql'], $segmentSql['bind']);
+
+        return $segmentTable;
+    }
+
 
     protected function getVisitsMetricFields()
     {
@@ -671,7 +660,6 @@ class LogAggregator
      * @param $dimensions
      * @param $tableName
      * @param bool $appendSelectAs
-     * @param bool $parseSelectAs
      * @return mixed
      */
     protected function getSelectDimensions($dimensions, $tableName, $appendSelectAs = true)
@@ -775,10 +763,11 @@ class LogAggregator
      */
     public function getGeneralQueryBindParams()
     {
-        $bind = array($this->dateStart->toString(Date::DATE_TIME_FORMAT), $this->dateEnd->toString(Date::DATE_TIME_FORMAT));
-        $bind = array_merge($bind, $this->sites);
-
-        return $bind;
+        $bind = [
+            $this->dateStart->toString(Date::DATE_TIME_FORMAT),
+            $this->dateEnd->toString(Date::DATE_TIME_FORMAT)
+        ];
+        return array_merge($bind, $this->sites);
     }
 
     /**
@@ -1096,6 +1085,146 @@ class LogAggregator
                 return $rankingQuery->execute($query['sql'], $query['bind']);
             }
         }
+
+        return $this->getDb()->query($query['sql'], $query['bind']);
+    }
+
+    /**
+     * Similar to queryConversionsByDimension and will return data in the same format, but takes into account pageviews
+     * leading up to a conversion, not just the final page that triggered the conversion
+     *
+     * @param string $linkField
+     * @param int    $idGoal
+     *
+     * @return \Zend_Db_Statement|array
+     */
+    public function queryConversionsByPageView(string $linkField, int $idGoal)
+    {
+
+        $generalBind = $this->getGeneralQueryBindParams();
+
+        $select = 'log_conversion.idvisit, COUNT(*) AS num_total';
+
+        $from = [
+            'log_conversion',
+                ['table' => 'log_link_visit_action', 'tableAlias' => 'log_vpast', 'join' => 'RIGHT JOIN',
+                            'joinOn' => 'log_conversion.idvisit = log_vpast.idvisit'],
+                ['table' => 'log_action', 'tableAlias' => 'lac_past',
+                            'joinOn' => 'log_vpast.'.$linkField.' = lac_past.idaction']
+        ];
+
+        $where = $this->getWhereStatement('log_conversion', 'server_time');
+        $where .= sprintf('AND log_conversion.idgoal = %d 
+                          AND log_vpast.server_time <= log_conversion.server_time
+                          AND lac_past.type = %s',
+                          (int) $idGoal, ($linkField == 'idaction_url' ? '1' : '4'));
+
+        $groupBy = 'log_conversion.idvisit';
+
+        $query = $this->generateQuery($select, $from, $where, $groupBy, false);
+
+        $dbSettings = new \Piwik\Db\Settings();
+        $tablePrefix = $dbSettings->getTablePrefix();
+
+        $sql = sprintf(
+        "SELECT
+          yyy.idvisit AS idvisit,
+          ".$idGoal." AS idgoal,
+          ".($linkField == 'idaction_url' ? '1' : '4')." AS `type`,
+          yyy.idaction AS idaction,
+          COUNT(*) AS `1`,     
+          " . sprintf("ROUND(SUM(yyy.revenue_total),2) AS `%d`,", Metrics::INDEX_GOAL_REVENUE) . "          
+          " . sprintf("COUNT(yyy.idvisit) AS `%d`,", Metrics::INDEX_GOAL_NB_VISITS_CONVERTED) . "                   
+          " . sprintf("ROUND(SUM(yyy.revenue_subtotal),2) AS `%d`,", Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_SUBTOTAL) . "                 
+          " . sprintf("ROUND(SUM(yyy.revenue_tax),2) AS `%d`,", Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_TAX) . "
+          " . sprintf("ROUND(SUM(yyy.revenue_shipping),2) AS `%d`,", Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_SHIPPING) . "
+          " . sprintf("ROUND(SUM(yyy.revenue_discount),2) AS `%d`,", Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_DISCOUNT) . "
+          " . sprintf("SUM(yyy.items) AS `%d`,", Metrics::INDEX_GOAL_ECOMMERCE_ITEMS) . "
+          " . sprintf("yyy.pages_before AS `%d`,", Metrics::INDEX_GOAL_NB_PAGES_UNIQ_BEFORE) . "                    
+          " . sprintf("SUM(yyy.attribution) AS `%d`,", Metrics::INDEX_GOAL_NB_CONVERSIONS_ATTRIB) . "                    
+          " . sprintf("COUNT(*) AS `%d`,", Metrics::INDEX_GOAL_NB_CONVERSIONS_PAGE_UNIQ) . "              
+          " . sprintf("ROUND(SUM(yyy.revenue),2) AS `%d`", Metrics::INDEX_GOAL_REVENUE_ATTRIB) . "         
+        FROM (
+          SELECT
+            num_total AS pages_before,
+            1 / num_total AS attribution,
+            r.idvisit AS idvisit,
+            lac.idaction AS idaction,
+            lvcon.revenue AS revenue_total,
+            1 / num_total * lvcon.revenue AS revenue,
+            1 / num_total * lvcon.revenue_subtotal AS revenue_subtotal,
+            1 / num_total * lvcon.revenue_tax AS revenue_tax,
+            1 / num_total * lvcon.revenue_shipping AS revenue_shipping,
+            1 / num_total * lvcon.revenue_discount AS revenue_discount,
+            1 / num_total * lvcon.items AS items
+          FROM (
+            %s
+          ) AS r
+          LEFT JOIN ".Common::prefixTable('log_conversion')." lvcon ON lvcon.idgoal = ".$idGoal." AND lvcon.idvisit = r.idvisit
+          RIGHT JOIN ".Common::prefixTable('log_link_visit_action')." logv ON logv.idvisit = r.idvisit
+          LEFT JOIN ".Common::prefixTable('log_action')." lac ON logv.".$linkField." = lac.idaction
+          WHERE logv.server_time >= '%s'
+            AND logv.server_time <= '%s'
+            AND logv.idsite IN (%d) 
+            AND lac.type = ".($linkField == 'idaction_url' ? '1' : '4')."
+            AND logv.server_time <= lvcon.server_time
+          ) AS yyy
+        GROUP BY yyy.idaction
+        ORDER BY `9` DESC", $query['sql'], $generalBind[0], $generalBind[1], $generalBind[2]
+        );
+
+        return $this->getDb()->query($sql, $query['bind']);
+
+    }
+
+    /**
+     * Query conversions by entry page
+     *
+     * @param string $linkField
+     * @param int $rankingQueryLimit
+     *
+     * @return \Zend_Db_Statement|array
+     */
+    public function queryConversionsByEntryPageView(string $linkField, int $rankingQueryLimit = 0)
+    {
+        $tableName  = self::LOG_CONVERSION_TABLE;
+
+        $select = implode(
+                ', ',
+                [
+                    'log_conversion.idgoal AS idgoal',
+                    sprintf('log_visit.%s AS idaction', $linkField),
+                    'log_action.type',
+                    sprintf('COUNT(*) AS `%d`', Metrics::INDEX_GOAL_NB_CONVERSIONS),
+                    sprintf('COUNT(distinct log_conversion.idvisit) AS `%d`', Metrics::INDEX_GOAL_NB_VISITS_CONVERTED),
+                    sprintf('%s AS `%d`', self::getSqlRevenue('SUM(log_conversion.revenue)'), Metrics::INDEX_GOAL_REVENUE_ENTRY),
+                    sprintf('%s AS `%d`', self::getSqlRevenue('SUM(log_conversion.revenue_subtotal)'), Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_SUBTOTAL),
+                    sprintf('%s AS `%d`', self::getSqlRevenue('SUM(log_conversion.revenue_tax)'), Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_TAX),
+                    sprintf('%s AS `%d`', self::getSqlRevenue('SUM(log_conversion.revenue_shipping)'), Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_SHIPPING),
+                    sprintf('%s AS `%d`', self::getSqlRevenue('SUM(log_conversion.revenue_discount)'), Metrics::INDEX_GOAL_ECOMMERCE_REVENUE_DISCOUNT),
+                    sprintf('SUM(log_conversion.items) AS `%d`', Metrics::INDEX_GOAL_ECOMMERCE_ITEMS),
+                    sprintf('COUNT(*) AS `%d`', Metrics::INDEX_GOAL_NB_CONVERSIONS_ENTRY)
+                ]
+            );
+
+        $from = [
+            $tableName,
+                [
+                    "table"  => "log_visit",
+                    "joinOn" => "log_visit.idvisit = log_conversion.idvisit"
+                ],
+                [
+                    "table" => "log_action",
+                    "joinOn" => "log_action.idaction = log_visit.".$linkField
+                ]
+        ];
+
+        $where   = $linkField.' IS NOT NULL AND log_conversion.idgoal >= 0';
+        $where   = $this->getWhereStatement($tableName, self::CONVERSION_DATETIME_FIELD, $where);
+        $groupBy = 'log_visit.'.$linkField.', log_conversion.idgoal';
+        $orderBy = false;
+
+        $query   = $this->generateQuery($select, $from, $where, $groupBy, $orderBy);
 
         return $this->getDb()->query($query['sql'], $query['bind']);
     }

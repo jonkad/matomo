@@ -55,7 +55,7 @@
           v-model="searchTerm"
           tabindex="4"
           class="websiteSearch inp browser-default"
-          v-focus-if:[shouldFocusOnSearch]="{}"
+          v-focus-if="{ focused: shouldFocusOnSearch }"
           :placeholder="translate('General_Search')"
         />
         <img
@@ -79,8 +79,8 @@
           @click="showSitesList = false"
         >
           <li
-            @click="switchSite(site, $event)"
-            v-show="!(!showSelectedSite && activeSiteId === site.idsite)"
+            @click="switchSite({ ...site, id: site.idsite }, $event)"
+            v-show="!(!showSelectedSite && `${activeSiteId}` === `${site.idsite}`)"
             v-for="(site, index) in sites"
             :key="index"
           >
@@ -126,7 +126,7 @@ import FocusIf from '../FocusIf/FocusIf';
 import AllSitesLink from './AllSitesLink.vue';
 import Matomo from '../Matomo/Matomo';
 import MatomoUrl from '../MatomoUrl/MatomoUrl';
-import translate from '../translate';
+import { translate } from '../translate';
 import SitesStore from './SitesStore';
 import debounce from '../debounce';
 import SiteRef from './SiteRef';
@@ -143,19 +143,7 @@ interface SiteSelectorState {
 
 export default defineComponent({
   props: {
-    modelValue: {
-      type: Object,
-      default: (props: { modelValue?: SiteRef }): SiteRef|undefined => {
-        if (props.modelValue) {
-          return props.modelValue;
-        }
-
-        return (Matomo.idSite ? {
-          id: Matomo.idSite,
-          name: Matomo.helper.htmlDecode(Matomo.siteName),
-        } : undefined);
-      },
-    },
+    modelValue: Object,
     showSelectedSite: {
       type: Boolean,
       default: false,
@@ -185,6 +173,11 @@ export default defineComponent({
       default: 'bottom',
     },
     placeholder: String,
+    defaultToFirstSite: Boolean,
+    sitesToExclude: {
+      type: Array,
+      default: () => [] as number[],
+    },
   },
   emits: ['update:modelValue', 'blur'],
   components: {
@@ -211,12 +204,22 @@ export default defineComponent({
   },
   created() {
     this.searchSite = debounce(this.searchSite);
+
+    if (!this.modelValue && Matomo.idSite) {
+      this.$emit('update:modelValue', {
+        id: Matomo.idSite,
+        name: Matomo.helper.htmlDecode(Matomo.siteName),
+      });
+    }
   },
   mounted() {
     window.initTopControls();
 
     this.loadInitialSites().then(() => {
-      if ((!this.modelValue || !this.modelValue.id) && !this.hasMultipleSites && this.sites[0]) {
+      if ((!this.modelValue || !this.modelValue.id)
+        && (!this.hasMultipleSites || this.defaultToFirstSite)
+        && this.sites[0]
+      ) {
         this.$emit('update:modelValue', { id: this.sites[0].idsite, name: this.sites[0].name });
       }
     });
@@ -250,10 +253,15 @@ export default defineComponent({
         : '';
     },
     hasMultipleSites() {
-      return SitesStore.initialSites.value && SitesStore.initialSites.value.length > 1;
+      const initialSites = SitesStore.initialSitesFiltered.value
+        && SitesStore.initialSitesFiltered.value.length
+        ? SitesStore.initialSitesFiltered.value : SitesStore.initialSites.value;
+      return initialSites && initialSites.length > 1;
     },
     firstSiteName() {
-      const initialSites = SitesStore.initialSites.value;
+      const initialSites = SitesStore.initialSitesFiltered.value
+        && SitesStore.initialSitesFiltered.value.length
+        ? SitesStore.initialSitesFiltered.value : SitesStore.initialSites.value;
       return initialSites && initialSites.length > 0 ? initialSites[0].name : '';
     },
     urlAllSites() {
@@ -278,10 +286,10 @@ export default defineComponent({
       }
     },
     onAllSitesClick(event: MouseEvent) {
-      this.switchSite({ idsite: 'all', name: this.$props.allSitesText }, event);
+      this.switchSite({ id: 'all', name: this.$props.allSitesText }, event);
       this.showSitesList = false;
     },
-    switchSite(site: Site, event: KeyboardEvent|MouseEvent) {
+    switchSite(site: SiteRef, event: KeyboardEvent|MouseEvent) {
       // for Mac OS cmd key needs to be pressed, ctrl key on other systems
       const controlKey = navigator.userAgent.indexOf('Mac OS X') !== -1 ? event.metaKey : event.ctrlKey;
 
@@ -290,13 +298,13 @@ export default defineComponent({
         return;
       }
 
-      this.$emit('update:modelValue', { id: site.idsite, name: site.name });
+      this.$emit('update:modelValue', { id: site.id, name: site.name });
 
-      if (!this.switchSiteOnSelect || this.activeSiteId === site.idsite) {
+      if (!this.switchSiteOnSelect || this.activeSiteId === site.id) {
         return;
       }
 
-      SitesStore.loadSite(site.idsite);
+      SitesStore.loadSite(site.id);
     },
     onBlur() {
       this.showSitesList = false;
@@ -339,14 +347,16 @@ export default defineComponent({
       return `${previousPart}<span class="autocompleteMatched">${this.searchTerm}</span>${lastPart}`;
     },
     loadInitialSites() {
-      return SitesStore.loadInitialSites().then((sites) => {
+      return SitesStore.loadInitialSites(this.onlySitesWithAdminAccess,
+        (this.sitesToExclude ? this.sitesToExclude : []) as number[]).then((sites) => {
         this.sites = sites || [];
       });
     },
     searchSite(term: string) {
       this.isLoading = true;
 
-      SitesStore.searchSite(term, this.onlySitesWithAdminAccess).then((sites) => {
+      SitesStore.searchSite(term, this.onlySitesWithAdminAccess,
+        (this.sitesToExclude ? this.sitesToExclude : []) as number[]).then((sites) => {
         if (term !== this.searchTerm) {
           return; // search term changed in the meantime
         }

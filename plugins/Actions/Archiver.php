@@ -8,12 +8,15 @@
  */
 namespace Piwik\Plugins\Actions;
 
-use Piwik\Config;
+use Piwik\API\Request;
+use Piwik\Cache;
+use Piwik\Config\GeneralConfig;
 use Piwik\DataArray;
 use Piwik\DataTable;
 use Piwik\Metrics as PiwikMetrics;
 use Piwik\RankingQuery;
 use Piwik\Tracker\Action;
+use Piwik\Tracker\GoalManager;
 
 /**
  * Class encapsulating logic to process Day/Period Archiving for the Actions reports
@@ -66,6 +69,7 @@ class Archiver extends \Piwik\Plugin\Archiver
         $this->archiveDayEntryActions($rankingQueryLimit);
         $this->archiveDayExitActions($rankingQueryLimit);
         $this->archiveDayActionsTime($rankingQueryLimit);
+        $this->archiveDayActionsGoals($rankingQueryLimit);
 
         $this->insertDayReports();
 
@@ -181,7 +185,7 @@ class Archiver extends \Piwik\Plugin\Archiver
         }
 
         $dataTable = $dataArray->asDataTable();
-        $report = $dataTable->getSerialized();
+        $report = $dataTable->getSerialized(ArchivingHelper::$maximumRowsInDataTableSiteSearch);
         $this->getProcessor()->insertBlobRecord(self::SITE_SEARCH_CATEGORY_RECORD_NAME, $report);
     }
 
@@ -459,6 +463,105 @@ class Archiver extends \Piwik\Plugin\Archiver
     }
 
     /**
+     * Add goals data for each combination of url / title and pageviews / entries
+     *
+     * @param int   $rankingQueryLimit
+     *
+     * @return void
+     */
+    protected function archiveDayActionsGoals(int $rankingQueryLimit): void
+    {
+
+        $site = $this->getProcessor()->getParams()->getSite();
+
+        if (!\Piwik\Common::isGoalPluginEnabled() ||
+            GeneralConfig::getConfigValue('disable_archive_actions_goals', $site->getId())) {
+            return;
+        }
+
+        $goals = $this->getGoalsForSite($site->getId());
+
+        // Add orders and abandoned cart codes if the site is enabled for ecommerce
+        if ($site->isEcommerceEnabled()) {
+            $goals[] = GoalManager::IDGOAL_CART;
+            $goals[] = GoalManager::IDGOAL_ORDER;
+        }
+
+        foreach ($goals as $idGoal) {
+            $this->archiveDayActionsGoalsPages(true, $idGoal);
+            $this->archiveDayActionsGoalsPages(false, $idGoal);
+        }
+
+        $this->archiveDayActionsGoalsPagesEntry($rankingQueryLimit, true);
+        $this->archiveDayActionsGoalsPagesEntry($rankingQueryLimit, false);
+    }
+
+    /**
+     * Query goal page view data and update actions data table
+     *
+     * @param bool  $isUrl              If true then query goal data by url, else by name
+     * @param int   $idGoal             Goal to archive
+     *
+     * @return int|null Count of records processed
+     * @throws \Exception
+     */
+    protected function archiveDayActionsGoalsPages(bool $isUrl, int $idGoal): ?int
+    {
+        $linkField = ($isUrl ? 'idaction_url' : 'idaction_name');
+        $resultSet = $this->getLogAggregator()->queryConversionsByPageView($linkField, $idGoal);
+        if (!$resultSet) {
+            return null;
+        }
+        return ArchivingHelper::updateActionsTableWithGoals($resultSet, true);
+    }
+
+    /**
+     * Get a list of goal ids for a site
+     *
+     * @param string $idSite
+     *
+     * @return array
+     */
+    private function getGoalsForSite(string $idSite) : array
+    {
+        $cache = Cache::getTransientCache();
+        $key   = 'ActionArchives_allGoalIds_' . $idSite;
+
+        if ($cache->contains($key)) {
+            return $cache->fetch($key);
+        }
+
+        $siteGoals = Request::processRequest('Goals.getGoals', ['idSite' => $idSite, 'filter_limit' => '-1'], $default = []);
+        $goalIds = array_column($siteGoals, 'idgoal');
+
+        $cache->save($key, $goalIds);
+        return $goalIds;
+    }
+
+    /**
+     * Query goal entry page data and update actions data table
+     *
+     * @param int   $rankingQueryLimit
+     * @param bool  $isUrl              If true then query goal data by url, else by name
+     *
+     * @return int|null Count of records processed
+     * @throws \Exception
+     */
+    protected function archiveDayActionsGoalsPagesEntry(int $rankingQueryLimit, bool $isUrl): ?int
+    {
+        if (GeneralConfig::getConfigValue('disable_archive_actions_goals', $this->getProcessor()->getParams()->getSite()->getId())) {
+            return null;
+        }
+        $linkField = ($isUrl ? 'visit_entry_idaction_url' : 'visit_entry_idaction_name');
+        $resultSet = $this->getLogAggregator()->queryConversionsByEntryPageView($linkField, $rankingQueryLimit);
+        if (!$resultSet) {
+            return null;
+        }
+
+        return ArchivingHelper::updateActionsTableWithGoals($resultSet, false);
+    }
+
+    /**
      * @param $typeId
      * @return DataTable
      */
@@ -532,38 +635,55 @@ class Archiver extends \Piwik\Plugin\Archiver
     public function aggregateMultipleReports()
     {
         ArchivingHelper::reloadConfig();
-        $dataTableToSum = array(
+        $dataTableToSum = [
             self::PAGE_TITLES_RECORD_NAME,
             self::PAGE_URLS_RECORD_NAME,
-        );
-        $this->getProcessor()->aggregateDataTableRecords($dataTableToSum,
+        ];
+        $this->getProcessor()->aggregateDataTableRecords(
+            $dataTableToSum,
             ArchivingHelper::$maximumRowsInDataTableLevelZero,
             ArchivingHelper::$maximumRowsInSubDataTable,
             ArchivingHelper::$columnToSortByBeforeTruncation,
             Metrics::$columnsAggregationOperation,
             Metrics::$columnsToRenameAfterAggregation,
-            $countRowsRecursive = array()
+            $countRowsRecursive = []
         );
 
-        $dataTableToSum = array(
+        $aggregation = null;
+        $dataTableToSum = [
             self::DOWNLOADS_RECORD_NAME,
             self::OUTLINKS_RECORD_NAME,
-            self::SITE_SEARCH_RECORD_NAME,
-            self::SITE_SEARCH_CATEGORY_RECORD_NAME,
-        );
-        $aggregation = null;
-        $nameToCount = $this->getProcessor()->aggregateDataTableRecords($dataTableToSum,
+        ];
+        $this->getProcessor()->aggregateDataTableRecords(
+            $dataTableToSum,
             ArchivingHelper::$maximumRowsInDataTableLevelZero,
             ArchivingHelper::$maximumRowsInSubDataTable,
             ArchivingHelper::$columnToSortByBeforeTruncation,
             $aggregation,
             Metrics::$columnsToRenameAfterAggregation,
-            $countRowsRecursive = array()
+            $countRowsRecursive = []
+        );
+
+        $dataTableToSum = [
+            self::SITE_SEARCH_RECORD_NAME,
+            self::SITE_SEARCH_CATEGORY_RECORD_NAME,
+        ];
+        $nameToCount    = $this->getProcessor()->aggregateDataTableRecords(
+            $dataTableToSum,
+            ArchivingHelper::$maximumRowsInDataTableSiteSearch,
+            ArchivingHelper::$maximumRowsInSubDataTable,
+            ArchivingHelper::$columnToSortByBeforeTruncation,
+            $aggregation,
+            Metrics::$columnsToRenameAfterAggregation,
+            $countRowsRecursive = []
         );
 
         $this->getProcessor()->aggregateNumericMetrics($this->getMetricNames());
 
         // Unique Keywords can't be summed, instead we take the RowsCount() of the keyword table
-        $this->getProcessor()->insertNumericRecord(self::METRIC_KEYWORDS_RECORD_NAME, $nameToCount[self::SITE_SEARCH_RECORD_NAME]['level0']);
+        $this->getProcessor()->insertNumericRecord(
+            self::METRIC_KEYWORDS_RECORD_NAME,
+            $nameToCount[self::SITE_SEARCH_RECORD_NAME]['level0']
+        );
     }
 }

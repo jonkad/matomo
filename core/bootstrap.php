@@ -14,7 +14,7 @@ if (!defined('PIWIK_USER_PATH')) {
     define('PIWIK_USER_PATH', PIWIK_DOCUMENT_ROOT);
 }
 
-error_reporting(E_ALL | E_NOTICE);
+error_reporting(E_ALL);
 @ini_set('display_errors', defined('PIWIK_DISPLAY_ERRORS') ? PIWIK_DISPLAY_ERRORS : @ini_get('display_errors'));
 @ini_set('xdebug.show_exception_trace', 0);
 
@@ -42,6 +42,8 @@ require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/upgrade.php';
 
 // Composer autoloader
 require_once PIWIK_VENDOR_PATH . '/autoload.php';
+
+require_once PIWIK_INCLUDE_PATH . '/libs/upgradephp/dev.php';
 
 require_once PIWIK_INCLUDE_PATH . '/DIObject.php';
 

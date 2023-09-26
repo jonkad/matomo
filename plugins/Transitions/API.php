@@ -21,7 +21,6 @@ use Piwik\Db;
 use Piwik\Metrics;
 use Piwik\Period;
 use Piwik\Piwik;
-use Piwik\Plugins\Actions\Actions;
 use Piwik\Plugins\Actions\ArchivingHelper;
 use Piwik\Plugins\Live\Model;
 use Piwik\RankingQuery;
@@ -37,12 +36,12 @@ use Piwik\Tracker\TableLogAction;
  */
 class API extends \Piwik\Plugin\API
 {
-    public function getTransitionsForPageTitle($pageTitle, $idSite, $period, $date, $segment = false, $limitBeforeGrouping = false)
+    public function getTransitionsForPageTitle($pageTitle, $idSite, $period, $date, $segment = false, $limitBeforeGrouping = 0)
     {
         return $this->getTransitionsForAction($pageTitle, 'title', $idSite, $period, $date, $segment, $limitBeforeGrouping);
     }
 
-    public function getTransitionsForPageUrl($pageUrl, $idSite, $period, $date, $segment = false, $limitBeforeGrouping = false)
+    public function getTransitionsForPageUrl($pageUrl, $idSite, $period, $date, $segment = false, $limitBeforeGrouping = 0)
     {
         return $this->getTransitionsForAction($pageUrl, 'url', $idSite, $period, $date, $segment, $limitBeforeGrouping);
     }
@@ -56,19 +55,25 @@ class API extends \Piwik\Plugin\API
      * @param $period
      * @param $date
      * @param bool $segment
-     * @param bool $limitBeforeGrouping
+     * @param int $limitBeforeGrouping
      * @param string $parts
      * @return array
      * @throws Exception
      */
     public function getTransitionsForAction($actionName, $actionType, $idSite, $period, $date,
-                                            $segment = false, $limitBeforeGrouping = false, $parts = 'all')
+                                            $segment = false, $limitBeforeGrouping = 0, $parts = 'all')
     {
         Piwik::checkUserHasViewAccess($idSite);
 
         if (!$this->isPeriodAllowed($idSite, $period, $date)) {
             throw new Exception('PeriodNotAllowed');
         }
+
+        if ($limitBeforeGrouping && !is_numeric($limitBeforeGrouping)) {
+            throw new Exception('limitBeforeGrouping has to be an integer.');
+        }
+        //convert string to int
+        $limitBeforeGrouping = (int)$limitBeforeGrouping;
 
         // get idaction of the requested action
         $idaction = $this->deriveIdAction($actionName, $actionType);
@@ -79,7 +84,12 @@ class API extends \Piwik\Plugin\API
         // prepare log aggregator
         $site = new Site($idSite);
         $period = Period\Factory::build($period, $date);
-        $segment = new Segment($segment, $idSite, $period->getDateStart(), $period->getDateEnd());
+        $segment = new Segment(
+            $segment,
+            $idSite,
+            $period->getDateTimeStart()->setTimezone($site->getTimezone()),
+            $period->getDateTimeEnd()->setTimezone($site->getTimezone())
+        );
         $params = new ArchiveProcessor\Parameters($site, $period, $segment);
         $logAggregator = new LogAggregator($params);
 
@@ -213,11 +223,12 @@ class API extends \Piwik\Plugin\API
      * @param $report
      * @param $idaction
      * @param string $actionType
-     * @param $limitBeforeGrouping
+     * @param int $limitBeforeGrouping
      * @param boolean $includeLoops
      */
-    private function addFollowingActions($logAggregator, &$report, $idaction, $actionType, $limitBeforeGrouping, $includeLoops = false)
+    private function addFollowingActions($logAggregator, &$report, $idaction, $actionType, $limitBeforeGrouping = 0, $includeLoops = false)
     {
+
         $data = $this->queryFollowingActions(
             $idaction, $actionType, $logAggregator, $limitBeforeGrouping, $includeLoops);
 
@@ -232,12 +243,12 @@ class API extends \Piwik\Plugin\API
      * @param $idaction
      * @param $actionType
      * @param LogAggregator $logAggregator
-     * @param $limitBeforeGrouping
+     * @param  $limitBeforeGrouping
      * @param $includeLoops
      * @return array(followingPages:DataTable, outlinks:DataTable, downloads:DataTable)
      */
     protected function queryFollowingActions($idaction, $actionType, LogAggregator $logAggregator,
-                                          $limitBeforeGrouping = false, $includeLoops = false)
+                                          $limitBeforeGrouping = 0, $includeLoops = false)
     {
         $types = array();
 
@@ -292,7 +303,7 @@ class API extends \Piwik\Plugin\API
         $types[Action::TYPE_OUTLINK] = 'outlinks';
         $types[Action::TYPE_DOWNLOAD] = 'downloads';
 
-        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping : $this->limitBeforeGrouping);
+        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping: $this->limitBeforeGrouping);
         $rankingQuery->setOthersLabel('Others');
         $rankingQuery->addLabelColumn(array('name', 'url_prefix'));
         $rankingQuery->partitionResultIntoMultipleGroups('type', array_keys($types));
@@ -326,13 +337,15 @@ class API extends \Piwik\Plugin\API
      *
      * @param $idaction
      * @param $actionType
-     * @param Logaggregator $logAggregator
-     * @param $limitBeforeGrouping
+     * @param LogAggregator $logAggregator
+     * @param int $limitBeforeGrouping
      * @return DataTable
+     * @throws Exception
      */
-    protected function queryExternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = false)
+    protected function queryExternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = 0)
     {
-        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping : $this->limitBeforeGrouping);
+
+        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping: $this->limitBeforeGrouping);
         $rankingQuery->setOthersLabel('Others');
 
         // we generate a single column that contains the interesting data for each referrer.
@@ -402,16 +415,16 @@ class API extends \Piwik\Plugin\API
      * @param $idaction
      * @param $actionType
      * @param LogAggregator $logAggregator
-     * @param $limitBeforeGrouping
+     * @param int $limitBeforeGrouping
      * @return array(previousPages:DataTable, loops:integer)
      */
-    protected function queryInternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = false)
+    protected function queryInternalReferrers($idaction, $actionType, $logAggregator, $limitBeforeGrouping = 0)
     {
         $keyIsOther = 0;
         $keyIsPageUrlAction = 1;
         $keyIsSiteSearchAction = 2;
 
-        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping : $this->limitBeforeGrouping);
+        $rankingQuery = new RankingQuery($limitBeforeGrouping ? $limitBeforeGrouping: $this->limitBeforeGrouping);
         $rankingQuery->setOthersLabel('Others');
         $rankingQuery->addLabelColumn(array('name', 'url_prefix'));
         $rankingQuery->setColumnToMarkExcludedRows('is_self');
